@@ -196,4 +196,158 @@
 * * 如果A快照读一个没有的行，然后B插入了这个行，然后A去修改这个行，那么接下来A就能找到这个行了
 * * 如果A快照读了一下，然后B插入了，然后A当前读，就幻读了
 ### MySQL锁
-* 
+* 全局锁
+* * flush tables with read lock
+* * 改表结构和数据增删改都阻塞
+* * 全库逻辑备份的时候使用全局锁，防止不一致
+* * 可重复度隔离级别下，先开启事务就可以逻辑备份不用阻塞（创建了readview）
+* 表锁
+* * lock tables name read （S型锁）
+* * lock tables name write （X型锁）
+* 元数据锁
+* * 对表进行CRUD的时候会给元数据加读锁
+* * 结构变更的时候会加写锁
+* * MDL是在事务提交的时候才释放，任务执行期间是一直持有的，长事务会阻塞改变元数据的事务（写锁优先级高，后面的读锁都没法拿到锁了）
+* 意向锁
+* * 加行级锁的时候要加意向锁，意向共享锁、意向独占锁
+* * 意向锁是为了加独占锁（表级锁）的时候更快发现是否有行级锁
+* * 意向锁之间不会冲突
+* AUTO-INC锁
+* * 主键自增会用这个锁，插入一个数据的时候加锁，插完就解锁，不等事务结束
+* * 轻量级自增的锁：给字段自增的值就释放了，不需要整个语句结束
+* * 使用轻量级锁加binlog主从复制可能数据不一致
+* * * 比如一个事务create table t2 like t1
+* * * 然后另一个事务插入t2，这个插入语句在啥时候执行不一定
+* * * 如果用binlog的话，也有可能不知道顺序
+* * * 如果binlog用的是statement就不行，换成row就可以了
+* Record lock
+* * 记录锁，把一条记录锁上，S型和X型
+* Gap Lock
+* * 间隙锁，锁的是大的那个记录和小的记录之间的间隙，其实是记在大的那个记录上
+* * 间隙锁之间是可以兼容的，虽然有S和X之分但是实际没区别
+* Next-key Lock
+* * Record和Gap lock结合，锁住一个左开右闭的区间
+* * 这个S和X型锁是有互斥关系的
+* * 这个是为了解决当前读的幻读问题
+* 插入意向锁
+* * 插入意向锁是插入有间隙锁的位置的时候加的锁
+* * 插入意向锁设定为等待状态，等间隙锁释放转变为正常状态才算是加锁成功
+* * 插入意向锁是特殊的间隙锁，锁住一个点，不同的位置的插入意向锁是不互斥的，但是在同一个位置的插入意向锁是互斥的
+* select in share mode加S型锁
+* select for update是X型锁
+* 改和删都是X型锁
+* 对于唯一值和非唯一值的等值查询和范围查询，最后加出来的锁是不一样的，记录是否存在也是有不同的
+* * 判断的方式就是能否避免幻读
+* * 给二级索引加锁也会给主键记录加记录锁（不会加间隙锁）
+* * 看锁方式：select * from performance_schema.data_locks\G
+* * 唯一值等值查询，如果记录存在记录锁，不存在间隙锁
+* * 唯一值范围查询，如果记录存在，大于等于的那个会是记录锁，其他是next-key lock；小于退化成间隙锁，小于等于next-key lock；如果不存在都是间隙锁
+* * 非唯一值等值查询，如果记录存在所有符合的加next-key lock，第一个不符合的间隙锁；如果不存在，间隙锁
+* * 非唯一值间隙锁的两端有时可以插入成功有时不行
+* * * 原因在那个地方的下一个记录有间隙锁才会阻塞
+* * * 二级索引如果在右端点插入的比右端点主键值大，那就可以插
+* * * 如果二级索引在左端点插入的比左端点主键大，但是下一个也有间隙锁，那就不行，比左端点主键小时不行的
+* * 非唯一值范围查询，都加next-key lock
+* * 没加索引全表扫描，每个都加next-key lock，很严重，会全表锁住！
+* * 使用sql_safe_updates参数，只有where有索引，使用limit才能update成功
+* MySQL死锁
+* * 两个事务都持有间隙锁，并且都想插入，获取插入意向锁，就死锁了
+* * Insert在正常执行的时候是不会加锁的，如果不可能冲突，InnoDB就跳过加锁阶段，使用隐式锁，可能发生冲突才加锁
+* * * 具体方式是因为聚簇索引有trx_id这个字段，操作一个记录的是先看这个事务是否是活跃的，如果是活跃的，给这个事务转换为显式锁
+* * * 检查是否有锁冲突，有的话创建锁，设置成waiting状态
+* * 如果主键索引冲突，插入重复的主键，MySQL会报错，同时给主键索引加上一个S型记录锁，唯一二级索引冲突，会给它加上next-key lock
+* * * 这样另一个事务的当前读就会阻塞
+* * * 如果一个insert，先不加锁，另一个insert一样的，那么就会从隐式锁变成显式锁，第一个就会获得一个X型记录锁，和第二个的next-key lock或者记录锁冲突
+* * MySQL死锁解决方案：打破四者之一：互斥、占有且等待、不可强占用、循环等待
+* * 设置事务等待锁的超时时间innodb_lock_wait_timeout
+* * 开启主动死锁检测，innodb_deadlock_detect，主动回滚死锁的某一个事务
+### MySQL log
+* undo log
+* * 用于事务回滚和MVCC
+* * 修改、删除、新增的undo log格式不同
+* * MySQL每一行有隐藏字段trx_id和roll_pointer，这样就可以通过rool_pointer找到之前的版本（undo log）
+* * undo log和readview加起来能实现MVCC，快照读的时候会根据readview找到undo log中对应readview的数据
+* buffer poll
+* * InnoDB请求的内存空间，有数据页、索引页、插入缓存页、自适应哈希索引、锁信息、undo页
+* * 查询的时候会直接加载一页，undo log也会缓存在undo页里
+* redo log
+* * 用于持久化，掉电等故障恢复
+* * WAL，write ahead log
+* * 写操作不是立刻写到磁盘上，而是先写log，然后在合适的时候写到磁盘上
+* * redo log是在XX表的XX页的XX偏移量位置做了什么操作
+* * 掉电重启，可以通过redo log找到修改，重做以恢复
+* * Undo log的持久化也是通过redo log实现的
+* * redo log是顺序写，速度快，因为其是追加，在磁盘上是连续的
+* * redo log也是有一个buffer的，不是立刻写入，大小为16M
+* * redo log刷盘时机
+* * * MySQL正常关闭
+* * * redo log buffer的记录写入量大于内存空间的一半的时候
+* * * 后台线程没1秒持久化
+* * * 每次事务提交的时候
+* * * innodb_flush_log_at_trx_commit 0不写入，1直接持久化，2写道pagecache里
+* * 默认情况下，redo log文件有2个，是一个环状的，写第一个文件，满了写第二个，满了写第一个
+* * 如果redo log文件满了，那MySQL就会阻塞，把Buffer poll中的脏页刷盘，然后就可以空出来没用的redo log
+* binlog
+* * 数据备份和主从复制
+* * binlog是server层的，记录的更新的情况
+* * 三种格式
+* * * statement记录修改的SQL语句，但是可能因为并发或者动态函数导致数据不一致
+* * * row 记录行数据最终被改成啥样，太大
+* * * mixed 自动调整statement还是row
+* 主从复制
+* * 异步执行
+* * 主库写入binlog，从库复制binlog，从库回放binlog
+* * 从库受到binlog就会回复ack
+* * 这样可以主库写、从库读
+* * 如果从库太多，导致I/O太多，一般1主2从1备主
+* * binlog首先写到binlog cache里，事务提交的时候再把binlog cache的内容写道binlog文件里
+* * 每个线程都有binlog，但是都写道一个binlog文件里
+* * sync_binlog 0只write不fsync，1每次都write直接fsync，N每次都write，N个事务fsync（100-1000）
+* update执行流程
+* * 执行器负责执行，调用存储引擎的接口，如果在buffer pool就直接，否则读磁盘
+* * 执行器拿到以后看是否有变化，没有就不继续了
+* * 开启事务，记录undo页（buffer pool中），要记录redo log
+* * InnoDB更新记录，先记录redo log，后续WAL，合适机会刷盘
+* * 执行完成以后，记录binlog，保存在binlog cache里，提交了再刷盘
+* 两阶段提交
+* * redolog和binlog要一致，先后都可能因断电而不一致，因此需要两阶段提交
+* * MySQL开启一个XA事务，分两阶段执行
+* * * 第一阶段，把XID写入redo log，将redo log事务状态变为prepare，然后将redolog持久化
+* * * 第二阶段，把XID写入binlog，把binlog持久化到磁盘，然后调用引擎提交事务接口，把redo log状态设置为commit
+* * * 只要binlog刷盘成功，这个commit有没有刷盘不重要，binlog有这个XID就算提交成功
+* * MYSQL还是会以哦之redo log刷盘（1秒一次），不过没关系，如果事务中间崩溃了，MySQL会回滚，所以没有binlog也没事
+* * 两阶段提交I/O次数比较高，而且锁竞争比较激烈，早期MySQL两阶段提交要一直持有锁
+* * binlog组提交
+* * * 多个事务提交的时候，会合并多个binlog
+* * * commit阶段变为三个阶段
+* * * flush阶段，多个事务按顺序写入binlog到cache（不刷盘）
+* * * sync阶段，binlog文件做fsync操作，
+* * * commit阶段，各个事务做InnoDB commit操作
+* * * 每个阶段都有一个队列，每个阶段都有锁做保护，第一个进入队列的事务成为leader，领导队内的事务，完成后通知其他事务操作
+* * redolog组提交
+* * * 5.7版本之后引入
+* * * 把redo log刷盘延迟到flush阶段
+* * * 这样flush阶段刷redo log，写binlog
+* * * sync阶段刷binlog，提交成功
+* * * commit还是一样
+* * * Binlog_group_commit_sync_delay binlog不是直接刷盘，要等一波一起，时间到了，或者一组满了就刷盘
+* MySQL磁盘I/O很高的优化
+* * 设置组提交参数，binlog_group_commit_sync_no_delay_count 和binlog_group_commit_sync_delay 延迟binlog刷盘
+* * sync_binlog设置成大于1，100-1000，从而多个事务才刷binlog
+* * innodb_flush_log_at_trx_commit设置为2，redolog写到pagecache里
+### buffer poll
+* 大小通过innodb_buffer_pool_size参数来控制，默认128M，可以扩展到60%到80%
+* 数据页、索引页、插入缓存页、undo页、自适应哈希索引、锁信息
+* 每个缓存也有控制块指向它
+* 空闲页是利用一个链表管理，其指向每一个空闲的控制块
+* 脏页是有一个链表，指向每一个脏的控制块
+* 缓存替换LRU
+* * 预读失效：提前加载的页没被访问，还被放在首部赶走了热点缓存
+* * 解决：LRU链表分为young和old区域，预读放old
+* * 缓存污染：扫描到大量数据，把buffer全给替换了
+* * 解决：第一次和第二次扫描的间隔大于1s才从old提到young
+* 脏页什么时候刷盘
+* * redo log日志满了触发刷脏页
+* * buffer poll空间不足，淘汰一部分数据页，如果是脏页就要刷盘
+* * MySQL认为空闲的时候会刷盘
+* * MySQL关闭的时候会刷盘
