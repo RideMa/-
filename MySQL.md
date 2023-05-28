@@ -54,7 +54,7 @@
 * * * 如果单一字段，加上可变长度是2 bytes，加上NULL的bitmap 1 byte，可以存65532
 * * * 多个字段要看可变长度，和NULL
 * * 行溢出
-* * * 一页16374kb，比如说TEXT和BLOB都可能溢出，就需要存在另外的溢出页
+* * * 一页16374b，比如说TEXT和BLOB都可能溢出，就需要存在另外的溢出页
 * * * compacted是这一行保存一部分，其他用指针指过去，Dynamic和Compressed是直接指向溢出页地址
 ### MySQL索引
 * InnoDB默认B+树索引，还支持full-text索引，MyISAM也是
