@@ -1,0 +1,4832 @@
+<!DOCTYPE html>
+<html>
+ <head>
+ </head>
+ <body>
+  <meta content="relax" name="paragraphSpacing"/>
+  <blockquote class="lake-alert lake-alert-info">
+   <p style="text-align: center">
+    <strong>
+     整理作者：蓦然                                     知识星球、公众号（同名）：旧时光大数据
+    </strong>
+   </p>
+  </blockquote>
+  <blockquote>
+   <p>
+    <strong>
+     说明：暂时还是V3.0的，主要是MySQL，后续会补上
+    </strong>
+   </p>
+  </blockquote>
+  <h3>
+   数据库中的事务是什么，MySQL中是怎么实现的
+  </h3>
+  <p>
+   可回答：1）什么是数据库事务；2）MySQL的事务原理；3）数据库事务是基于什么实现的？
+  </p>
+  <p>
+   问过的一些公司：字节，字节(2021.10)，阿里，百度，美团点评，米哈游，ebay多益
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   <strong>
+    1、什么是事务
+   </strong>
+  </p>
+  <p>
+   事务是应用程序中一系列严密的操作，所有操作必须成功完成，否则在每个操作中所作的所有更改都会被撤消。也就是事务具有原子性，一个事务中的一系列的操作要么全部成功，要么一个都不做。
+  </p>
+  <p>
+   事务的结束有两种，当事务中的所以步骤全部成功执行时，事务提交。如果其中一个步骤失败，将发生回滚操作，撤消撤消之前到事务开始时的所以操作。
+  </p>
+  <p>
+   <strong>
+    2、MySQL中事务的实现原理
+   </strong>
+  </p>
+  <p>
+   事务的目的是要实现可靠性以及并发处理。
+  </p>
+  <p>
+   可靠性：数据库要保证当insert或update操作时抛异常或者数据库crash的时候需要保障数据的操作前后的一致，想要做到这个，需要知道修改之前和修改之后的状态，所以就有了undo log和redo log。
+  </p>
+  <p>
+   并发处理：也就是说当多个并发请求过来，并且其中有一个请求是对数据修改操作的时候会有影响，为了避免读到脏数据，所以需要对事务之间的读写进行隔离，需要用到MySQL的事务隔离功能。
+  </p>
+  <p>
+   <strong>
+    2.1 redo log 与 undo log介绍
+   </strong>
+  </p>
+  <p>
+   1）redo log
+  </p>
+  <p>
+   <strong>
+    什么是redo log ?
+   </strong>
+  </p>
+  <p>
+   redo log叫做重做日志，是用来实现事务的持久性。该日志文件由两部分组成：重做日志缓冲（redo log buffer）以及重做日志文件（redo log）,前者是在内存中，后者在磁盘中。当事务提交之后会把所有修改信息都会存到该日志中。假设有个表叫做tb1(id,username) 现在要插入数据（3，ceshi）
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662978897793-a715b998-af9b-47a9-b854-3b9088c6001e.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_13%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <pre><code class="language-sql" lang="sql">start transaction;                                     
+select balance from bank where name="zhangsan";         
+// 生成 重做日志 balance=600                                 
+update bank set balance = balance - 400;                
+// 生成 重做日志 amount=400                               
+update finance set amount = amount + 400;          
+commit;</code></pre>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662978913716-a2831b46-7ecd-4f51-8281-699a7cb461f1.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_17%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   <strong>
+    redo log 有什么作用？
+   </strong>
+  </p>
+  <p>
+   mysql 为了提升性能不会把每次的修改都实时同步到磁盘，而是会先存到Boffer Pool(缓冲池)里头，把这个当作缓存来用。然后使用后台线程去做缓冲池和磁盘之间的同步。
+  </p>
+  <p>
+   那么问题来了，如果还没来的同步的时候宕机或断电了怎么办？还没来得及执行上面图中红色的操作。这样会导致丢部分已提交事务的修改信息！
+  </p>
+  <p>
+   所以引入了redo log来记录已成功提交事务的修改信息，并且会把redo log持久化到磁盘，系统重启之后在读取redo log恢复最新数据。
+  </p>
+  <p>
+   <strong>
+    总结：
+   </strong>
+  </p>
+  <p>
+   redo log是用来恢复数据的 用于保障已提交事务的持久化特性。
+  </p>
+  <p>
+   2）undo log
+  </p>
+  <p>
+   <strong>
+    什么是 undo log ？
+   </strong>
+  </p>
+  <p>
+   undo log 叫做回滚日志，用于记录数据被修改前的信息。他正好跟前面所说的重做日志所记录的相反，重做日志记录数据被修改后的信息。undo log主要记录的是数据的逻辑变化，为了在发生错误时回滚之前的操作，需要将之前的操作都记录下来，然后在发生错误时才可以回滚。
+  </p>
+  <p>
+   还用上面那两张表
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662978936557-c92d2504-c826-4e88-9a9e-2c55aaa16886.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_18%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   每次写入数据或者修改数据之前都会把修改前的信息记录到 undo log。
+  </p>
+  <p>
+   <strong>
+    undo log 有什么作用？
+   </strong>
+  </p>
+  <p>
+   undo log 记录事务修改之前版本的数据信息，因此假如由于系统错误或者rollback操作而回滚的话可以根据undo log的信息来进行回滚到没被修改前的状态。
+  </p>
+  <p>
+   <strong>
+    总结：
+   </strong>
+  </p>
+  <p>
+   undo log是用来回滚数据的用于保障未提交事务的原子性
+  </p>
+  <p>
+   <strong>
+    2.2 mysql锁技术以及MVCC基础
+   </strong>
+  </p>
+  <p>
+   1）mysql锁技术
+  </p>
+  <p>
+   当有多个请求来读取表中的数据时可以不采取任何操作，但是多个请求里有读请求，又有修改请求时必须有一种措施来进行并发控制。不然很有可能会造成不一致。
+  </p>
+  <p>
+   <strong>
+    读写锁
+   </strong>
+  </p>
+  <p>
+   解决上述问题很简单，只需用两种锁的组合来对读写请求进行控制即可，这两种锁被称为：
+  </p>
+  <ul list="u5d179497">
+   <li fid="u0da61a2d">
+    共享锁(shared lock)，又叫做"读锁"，读锁是可以共享的，或者说多个读请求可以共享一把锁读数据，不会造成阻塞。
+   </li>
+   <li fid="u0da61a2d">
+    排他锁(exclusive lock)，又叫做"写锁"，写锁会排斥其他所有获取锁的请求，一直阻塞，直到写入完成释放锁。
+   </li>
+  </ul>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662979842866-650d286f-af6c-44d5-81e8-0a69f650667c.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_15%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   <strong>
+    总结：
+   </strong>
+  </p>
+  <p>
+   通过读写锁，可以做到读读可以并行，但是不能做到写读，写写并行。
+  </p>
+  <p>
+   事务的隔离性就是根据读写锁来实现的。
+  </p>
+  <p>
+   2）MVCC基础
+  </p>
+  <p>
+   MVCC (MultiVersion Concurrency Control) 叫做多版本并发控制。
+  </p>
+  <p>
+   InnoDB的 MVCC ，是通过在每行记录的后面保存两个隐藏的列来实现的。这两个列，一个保存了行的创建时间，一个保存了行的过期时间，当然存储的并不是实际的时间值，而是系统版本号
+  </p>
+  <p>
+   MVCC在mysql中的实现依赖的是undo log与read view
+  </p>
+  <ul list="u0403d48e">
+   <li fid="ub48a417c">
+    undo log：undo log 中记录某行数据的多个版本的数据。
+   </li>
+   <li fid="ub48a417c">
+    read view：用来判断当前版本数据的可见性
+   </li>
+  </ul>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662979864546-a1d21fdf-2381-4d48-afea-9d796a8cbd7d.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_17%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   <strong>
+    2.3 事务的实现
+   </strong>
+  </p>
+  <p>
+   前面介绍的重做日志，回滚日志以及锁技术就是实现事务的基础。
+  </p>
+  <ul list="ub3c51deb">
+   <li fid="u03755754">
+    事务的原子性是通过undolog来实现。
+   </li>
+   <li fid="u03755754">
+    事务的持久性性是通过redolog来实现
+   </li>
+   <li fid="u03755754">
+    事务的隔离性是通过(读写锁+MVCC)来实现
+   </li>
+   <li fid="u03755754">
+    事务的一致性是通过原子性，持久性，隔离性共同实现
+   </li>
+  </ul>
+  <p>
+   原子性，持久性，隔离性的目的也是为了保障数据的一致性！
+  </p>
+  <p>
+   总之，ACID只是个概念，事务最终目的是要保障数据的可靠性，一致性。
+  </p>
+  <p>
+   <strong>
+    1）原子性的实现
+   </strong>
+  </p>
+  <p>
+   什么是原子性：
+  </p>
+  <p>
+   一个事务必须被视为不可分割的最小工作单位，一个事务中的所有操作要么全部成功提交，要么全部失败回滚，对于一个事务来说不可能只执行其中的部分操作，这就是事务的原子性。
+  </p>
+  <p>
+   那么数据库是怎么实现的呢？就是通过回滚操作。所谓回滚操作就是当发生错误异常或者显式的执行rollback语句时需要把数据还原到原先的模样，所以这时候就需要用到undo log来进行回滚，接下来看一下undo log在实现事务原子性时怎么发挥作用的
+  </p>
+  <p>
+   （1）undo log 的生成
+  </p>
+  <p>
+   假设有两个表 bank和finance，表中原始数据如图所示，当进行插入，删除以及更新操作时生成的undo log如下面图所示：
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662980188498-d9b40595-af67-4d15-a6df-9c6543420421.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_18%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662980210544-ac822f1a-b5fb-470b-afed-1fd6f94cce3b.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_12%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   <strong>
+    根据上面流程可以得出如下结论：
+   </strong>
+  </p>
+  <ul list="ua9df2437">
+   <li fid="uafdb22e9">
+    每条数据变更(insert/update/delete)操作都伴随一条undo log的生成，并且回滚日志必须先于数据持久化到磁盘上；
+   </li>
+   <li fid="uafdb22e9">
+    所谓的回滚就是根据回滚日志做逆向操作，比如delete的逆向操作为insert，insert的逆向操作为delete，update的逆向为update等。
+   </li>
+  </ul>
+  <p>
+   （2）根据undo log 进行回滚
+  </p>
+  <p>
+   为了做到同时成功或者失败，当系统发生错误或者执行rollback操作时需要根据undo log 进行回滚
+  </p>
+  <p>
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662980243218-fa3145f2-4d12-4bdb-8a16-c0e9dc76be4f.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_24%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   回滚操作就是要还原到原来的状态，undo log记录了数据被修改前的信息以及新增和被删除的数据信息，根据undo log生成回滚语句，比如：
+  </p>
+  <ul list="u8ea3b891">
+   <li fid="u89416b85">
+    如果在回滚日志里有新增数据记录，则生成删除该条的语句
+   </li>
+   <li fid="u89416b85">
+    如果在回滚日志里有删除数据记录，则生成生成该条的语句
+   </li>
+   <li fid="u89416b85">
+    如果在回滚日志里有修改数据记录，则生成修改到原先数据的语句
+   </li>
+  </ul>
+  <p>
+   <strong>
+    2）持久性的实现
+   </strong>
+  </p>
+  <p>
+   事务一旦提交，其所做的修改会永久保存到数据库中，此时即使系统崩溃修改的数据也不会丢失。
+  </p>
+  <p>
+   先了解一下MySQL的数据存储机制，MySQL的表数据是存放在磁盘上的，因此想要存取的时候都要经历磁盘IO,然而即使是使用SSD磁盘IO也是非常消耗性能的。为此，为了提升性能InnoDB提供了缓冲池(Buffer Pool)，Buffer Pool中包含了磁盘数据页的映射，可以当做缓存来使用：
+  </p>
+  <p>
+   <strong>
+    读数据
+   </strong>
+   <span class="lake-fontsize-12">
+    ：会首先从缓冲池中读取，如果缓冲池中没有，则从磁盘读取再放入缓冲池；
+   </span>
+  </p>
+  <p>
+   <strong>
+    写数据
+   </strong>
+   <span class="lake-fontsize-12">
+    ：会首先写入缓冲池，缓冲池中的数据会定期同步到磁盘中；
+   </span>
+  </p>
+  <p>
+   上面这种缓冲池的措施虽然在性能方面带来了质的飞跃，但是它也带来了新的问题，当MySQL系统宕机，断电的时候可能会丢数据！！！
+  </p>
+  <p>
+   因为我们的数据已经提交了，但此时是在缓冲池里头，还没来得及在磁盘持久化，所以我们急需一种机制需要存一下已提交事务的数据，为恢复数据使用。
+  </p>
+  <p>
+   于是 redo log就派上用场了。下面看下redo log是什么时候产生的
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662980260331-90272c71-37a5-4b22-a87f-314c826cf3b0.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_17%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   既然redo log也需要存储，也涉及磁盘IO为啥还用它？
+  </p>
+  <ul list="u82bdf943">
+   <li fid="u3e75854c">
+    redo log 的存储是顺序存储，而缓存同步是随机操作。
+   </li>
+   <li fid="u3e75854c">
+    缓存同步是以数据页为单位的，每次传输的数据大小大于redo log。
+   </li>
+  </ul>
+  <p>
+   <strong>
+    3）隔离性的实现
+   </strong>
+  </p>
+  <p>
+   隔离性是事务ACID特性里最复杂的一个。在SQL标准里定义了四种隔离级别，每一种级别都规定一个事务中的修改，哪些是事务之间可见的，哪些是不可见的。
+  </p>
+  <p>
+   级别越低的隔离级别可以执行越高的并发，但同时实现复杂度以及开销也越大。
+  </p>
+  <p>
+   MySQL隔离级别有以下四种（级别由低到高）：
+  </p>
+  <ul list="uca9d544a">
+   <li fid="u5cd8a68e">
+    READ UNCOMMITED(未提交读)
+   </li>
+   <li fid="u5cd8a68e">
+    READ COMMITED(提交读)
+   </li>
+   <li fid="u5cd8a68e">
+    REPEATABLE READ(可重复读)
+   </li>
+   <li fid="u5cd8a68e">
+    SERIALIZABLE (串行化)
+   </li>
+  </ul>
+  <p>
+   只要彻底理解了隔离级别以及他的实现原理就相当于理解了ACID里的隔离型。前面说过原子性，隔离性，持久性的目的都是为了要做到一致性，但隔离型跟其他两个有所区别，原子性和持久性是为了要实现数据的可性保障靠，比如要做到宕机后的恢复，以及错误后的回滚。
+  </p>
+  <p>
+   那么隔离性是要做到什么呢？ 隔离性是要管理多个并发读写请求的访问顺序。 这种顺序包括串行或者是并行
+  </p>
+  <p>
+   说明一点，写请求不仅仅是指insert操作，又包括update操作。
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662980282126-82a61a3a-1d70-4fe7-9877-b235b4b6f4a8.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_14%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   总之，从隔离性的实现可以看出这是一场数据的
+   <strong>
+    可靠性与性能之间的权衡
+   </strong>
+   <span class="lake-fontsize-12">
+    ：
+   </span>
+  </p>
+  <p>
+   可靠性性高的，并发性能低(比如Serializable)。可靠性低的，并发性能高(比如 Read Uncommited)
+  </p>
+  <p>
+   （1）READ UNCOMMITTED
+  </p>
+  <p>
+   在READ UNCOMMITTED隔离级别下，事务中的修改即使还没提交，对其他事务是可见的。事务可以读取未提交的数据，造成脏读。
+  </p>
+  <p>
+   因为读不会加任何锁，所以写操作在读的过程中修改数据，所以会造成脏读。好处是可以提升并发处理性能，能做到读写并行。
+  </p>
+  <p>
+   换句话说，读的操作不能排斥写请求。
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662980665833-d6eb6182-365a-4f45-a0fb-90c582ab60c7.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_16%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   优点：读写并行，性能高
+  </p>
+  <p>
+   缺点：造成脏读
+  </p>
+  <p>
+   （2）READ COMMITTED
+  </p>
+  <p>
+   一个事务的修改在他提交之前的所有修改，对其他事务都是不可见的。其他事务能读到已提交的修改变化。在很多场景下这种逻辑是可以接受的。
+  </p>
+  <p>
+   InnoDB在 READ COMMITTED，使用排它锁,读取数据不加锁而是使用了MVCC机制。或者换句话说他采用了读写分离机制。
+  </p>
+  <p>
+   但是该级别会产生不可重读以及幻读问题。
+  </p>
+  <p>
+   <strong>
+    什么是不可重读？
+   </strong>
+  </p>
+  <p>
+   在一个事务内多次读取的结果不一样。
+  </p>
+  <p>
+   <strong>
+    为什么会产生不可重复读？
+   </strong>
+  </p>
+  <p>
+   这跟 READ COMMITTED 级别下的MVCC机制有关系，在该隔离级别下每次 select的时候新生成一个版本号，所以每次select的时候读的不是一个副本而是不同的副本。
+  </p>
+  <p>
+   在每次select之间有其他事务更新了我们读取的数据并提交了，那就出现了不可重复读
+  </p>
+  <p>
+   （3）REPEATABLE READ(Mysql默认隔离级别)
+  </p>
+  <p>
+   在一个事务内的多次读取的结果是一样的。这种级别下可以避免，脏读，不可重复读等查询问题。mysql 有两种机制可以达到这种隔离级别的效果，分别是采用读写锁以及MVCC。
+  </p>
+  <p>
+   <strong>
+    采用读写锁实现
+   </strong>
+   <span class="lake-fontsize-12">
+    ：
+   </span>
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662980689477-ff9c68c7-6299-4e4b-a2ca-387b80246baa.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_16%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   为什么能可重复读？
+  </p>
+  <p>
+   只要没释放读锁，在次读的时候还是可以读到第一次读的数据。
+  </p>
+  <p>
+   优点：实现起来简单
+  </p>
+  <p>
+   缺点：无法做到读写并行
+  </p>
+  <p>
+   <strong>
+    采用MVCC实现
+   </strong>
+   <span class="lake-fontsize-12">
+    ：
+   </span>
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662980707981-4b36b06b-d761-4c98-8dfe-22a6d4135251.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_15%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   为什么能可重复读？
+  </p>
+  <p>
+   因为多次读取只生成一个版本，读到的自然是相同数据。
+  </p>
+  <p>
+   优点：读写并行
+  </p>
+  <p>
+   缺点：实现的复杂度高
+  </p>
+  <p>
+   （4）SERIALIZABLE
+  </p>
+  <p>
+   该隔离级别理解起来最简单，实现也最简单。在隔离级别下除了不会造成数据不一致问题，没其他优点。
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662980734499-2724a50b-6c81-40a2-ae67-33ada4ad1c94.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_16%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   4）一致性的实现
+  </p>
+  <p>
+   数据库总是从一个一致性的状态转移到另一个一致性的状态。
+  </p>
+  <p>
+   下面举个例子，zhangsan 从银行卡转400到理财账户：
+  </p>
+  <pre><code class="language-sql" lang="sql">start transaction;                                     
+select balance from bank where name="zhangsan";         
+// 生成 重做日志 balance=600                             
+update bank set balance = balance - 400;                
+// 生成 重做日志 amount=400                              
+update finance set amount = amount + 400;           
+commit;</code></pre>
+  <ul list="u933f12d5">
+   <li fid="u25587b51">
+    假如执行完 update bank set balance = balance - 400;之发生异常了，银行卡的钱也不能平白无故的减少，而是回滚到最初状态。
+   </li>
+   <li fid="u25587b51">
+    又或者事务提交之后，缓冲池还没同步到磁盘的时候宕机了，这也是不能接受的，应该在重启的时候恢复并持久化。
+   </li>
+   <li fid="u25587b51">
+    假如有并发事务请求的时候也应该做好事务之间的可见性问题，避免造成脏读，不可重复读，幻读等。在涉及并发的情况下往往在性能和一致性之间做平衡，做一定的取舍，所以隔离性也是对一致性的一种破坏。
+   </li>
+  </ul>
+  <p>
+   <strong>
+    总结
+   </strong>
+  </p>
+  <p>
+   实现事务采取了哪些技术以及思想？
+  </p>
+  <ul list="u94652abb">
+   <li fid="ua53b4e5a">
+    原子性：使用 undo log ，从而达到回滚
+   </li>
+   <li fid="ua53b4e5a">
+    持久性：使用 redo log，从而达到故障后恢复
+   </li>
+   <li fid="ua53b4e5a">
+    隔离性：使用锁以及MVCC,运用的优化思想有读写分离，读读并行，读写并行
+   </li>
+   <li fid="ua53b4e5a">
+    一致性：通过回滚，以及恢复，和在并发环境下的隔离做到一致性。
+   </li>
+  </ul>
+  <h3>
+   MySQL事务的特性？
+  </h3>
+  <p>
+   可回答：1）数据库四大特性；2）事务的ACID分别是什么
+  </p>
+  <p>
+   问过的一些公司：字节，字节(2021.09)，美团，美团(2021.08)x2，多益，顺丰，华为精英计划(2021.07)，Shopee(2021.07)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   分别是原子性、一致性、隔离性、持久性。
+  </p>
+  <p>
+   1、原子性（Atomicity）
+  </p>
+  <p>
+   原子性是指事务包含的所有操作要么全部成功，要么全部失败回滚，因此事务的操作如果成功就必须要完全应用到数据库，如果操作失败则不能对数据库有任何影响。
+  </p>
+  <p>
+   2、一致性（Consistency）
+  </p>
+  <p>
+   一致性是指事务必须使数据库从一个一致性状态变换到另一个一致性状态，也就是说一个事务执行之前和执行之后都必须处于一致性状态。举例来说，假设用户A和用户B两者的钱加起来一共是1000，那么不管A和B之间如何转账、转几次账，事务结束后两个用户的钱相加起来应该还得是1000，这就是事务的一致性。
+  </p>
+  <p>
+   3、隔离性（Isolation）
+  </p>
+  <p>
+   隔离性是当多个用户并发访问数据库时，比如同时操作同一张表时，数据库为每一个用户开启的事务，不能被其他事务的操作所干扰，多个并发事务之间要相互隔离。关于事务的隔离性数据库提供了多种隔离级别，稍后会介绍到。
+  </p>
+  <p>
+   4、持久性（Durability）
+  </p>
+  <p>
+   持久性是指一个事务一旦被提交了，那么对数据库中的数据的改变就是永久性的，即便是在数据库系统遇到故障的情况下也不会丢失提交事务的操作。例如我们在使用JDBC操作数据库时，在提交事务方法后，提示用户事务操作完成，当我们程序执行完成直到看到提示后，就可以认定事务已经正确提交，即使这时候数据库出现了问题，也必须要将我们的事务完全执行完成。否则的话就会造成我们虽然看到提示事务处理完毕，但是数据库因为故障而没有执行事务的重大错误。这是不允许的。
+  </p>
+  <h3>
+   数据库事务的隔离级别？解决了什么问题？默认事务隔离级别？
+  </h3>
+  <p>
+   可回答：1）为什么要有隔离级别？2）谈谈事务的四个隔离级别
+  </p>
+  <p>
+   问过的一些公司：陌陌，好未来，阿里，阿里蚂蚁(2021.08)，顺丰，51，头条，美团点评 x 4，美团(2021.08)x2，平安，ebay，小米，唯品会(2021.07)x2，字节(2021.07)-(2021.08)-(2021.09)，蔚来(2021.07)，Shopee(2021.08)-(2021.07)，好未来(2021.08)x2
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   <strong>
+    1、事务的基本要素
+   </strong>
+  </p>
+  <p>
+   原子性、一致性、隔离性、持久性
+  </p>
+  <p>
+   <strong>
+    2、事务并发带来的四个问题
+   </strong>
+  </p>
+  <p>
+   1）脏读（脏读脏读顾名思义是读出了问题，读了别人没有提交的数据）
+  </p>
+  <p>
+   假如小名明账户有100元，这里有两个事务A，B；在A事务查看账户时是100，然后这个时候B事务将100改成了200元，但是事务B还没提交，恰巧这时A又去看了自己账户发现钱变成了200元，如果这时候B回滚事务。那么读取的数据就是脏数据。这种现象总结下来就是A事务读取了B还没有提交的事务，称作脏读。
+  </p>
+  <p>
+   2）不可重复读（多次读取同一个数据发现结果不一致）
+  </p>
+  <p>
+   在一次事务中的多次查询同一数据发现查询结果不一致。
+  </p>
+  <p>
+   3）幻读（两次查询结果发现条数不一致）
+  </p>
+  <p>
+   在一个事务中可能有人提交了新的数据，导致查询结果数据量不一致。
+  </p>
+  <p>
+   4）数据丢失
+  </p>
+  <p>
+   两次更新操作可能会覆盖上一次数据的写入,导致数据丢失问题。
+  </p>
+  <p>
+   <strong>
+    3、对于事务带来的问题的解决方案（四种隔离级别）
+   </strong>
+  </p>
+  <p>
+   <strong>
+    Read Uncommitted（读取未提交内容）
+   </strong>
+  </p>
+  <p>
+   在一个事务中，可以读取到其他事务未提交的数据变化，这种读取其他会话还没提交的事务，叫做脏读现象，在生产环境中切勿使用。
+  </p>
+  <p>
+   <strong>
+    Read Committed（读取提交内容）
+   </strong>
+  </p>
+  <p>
+   在一个事务中，可以读取到其他事务已经提交的数据变化，这种读取也就叫做不可重复读，因为两次同样的查询可能会得到不一样的结果。
+  </p>
+  <p>
+   <strong>
+    Repeatable Read（可重读）
+   </strong>
+  </p>
+  <p>
+   MySQL默认隔离级别，在一个事务中，直到事务结束前，都可以反复读取到事务刚开始时看到的数据，并一直不会发生变化，避免了脏读、不可重复读现象，但是它还是无法解决幻读问题。
+  </p>
+  <p>
+   <strong>
+    Serializable（可串行化）
+   </strong>
+  </p>
+  <p>
+   这是最高的隔离级别，它强制事务串行执行，避免了前面说的幻读现象，简单来说，它会在读取的每一行数据上都加锁，所以可能会导致大量的超时和锁争用问题。
+  </p>
+  <p>
+   <strong>
+    目前mysql默认使用可重复读隔离级别
+   </strong>
+  </p>
+  <h3>
+   脏读，幻读，不可重复读的定义
+  </h3>
+  <p>
+   可回答：了解脏读和幻读吗
+  </p>
+  <p>
+   问过的一些公司：华为精英计划(2021.07)，Shopee(2021.08)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   1）脏读（脏读脏读顾名思义是读出了问题，读了别人没有提交的数据）
+  </p>
+  <p>
+   假如小名明账户有100元，这里有两个事务A，B；在A事务查看账户时是100，然后这个时候B事务将100改成了200元，但是事务B还没提交，恰巧这时A又去看了自己账户发现钱变成了200元，如果这时候B回滚事务。那么读取的数据就是脏数据。这种现象总结下来就是A事务读取了B还没有提交的事务，称作脏读。
+  </p>
+  <p>
+   2）不可重复读（多次读取同一个数据发现结果不一致）
+  </p>
+  <p>
+   在一次事务中的多次查询同一数据发现查询结果不一致。
+  </p>
+  <p>
+   3）幻读（两次查询结果发现条数不一致）
+  </p>
+  <p>
+   在一个事务中可能有人提交了新的数据，导致查询结果数据量不一致。
+  </p>
+  <p>
+   4）数据丢失
+  </p>
+  <p>
+   两次更新操作可能会覆盖上一次数据的写入,导致数据丢失问题。
+  </p>
+  <h3>
+   MySQL怎么实现可重复读？
+  </h3>
+  <p>
+   问过的一些公司：阿里蚂蚁(2021.08)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   MySQL默认的隔离级别是可重复读，即：事务A在读到一条数据之后，此时事务B对该数据进行了修改并提交，那么事务A再读该数据，读到的还是原来的内容。
+  </p>
+  <p>
+   MySQL可重复读是使用的的一种叫
+   <strong>
+    MVCC
+   </strong>
+   <span class="lake-fontsize-12">
+    的控制方式实现的，即Mutil-Version Concurrency Control，多版本并发控制，类似于乐观锁的一种实现方式。
+   </span>
+  </p>
+  <p>
+   实现方式：
+  </p>
+  <p>
+   InnoDB为每行记录添加了一个事务ID，每当修改数据时，将当事务ID写入。当数据被修改时，版本号（事务ID）加1，在读取事务开始时，系统会给当前读事务一个版本号，
+   <strong>
+    事务会读取版本号 &lt;= 当前版本号的数据
+   </strong>
+   <span class="lake-fontsize-12">
+    。此时如果其他写事务修改了这条数据，那么这条数据的版本号就会加1，从而比当前读事务的版本号高，读事务自然而然的就读不到更新后的数据了。
+   </span>
+  </p>
+  <h3>
+   数据库第三范式和第四范式区别？
+  </h3>
+  <p>
+   可回答：1）数据库三大范式；2）数据库范式3NF、BCNF、4NF
+  </p>
+  <p>
+   问过的一些公司：阿里，美团x4，有赞，网易，趋势科技，腾讯，好未来，唯品会(2021.07)，携程(2021.09)，字节(2021.08)x3，兴业数金(2021.08)x2，陌陌(2021.10)，Shopee(2021.08)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   <strong>
+    第一范式：（字段不能重复且不能分解）
+   </strong>
+  </p>
+  <p>
+   我们也叫1NF。这个范式主要还是让我们去看看表中不要存在可以被分割的列，同时表的列不能重复。当然，在实际操作过程中，我们如果录入相同的列，系统也是会报错的。
+  </p>
+  <p>
+   <strong>
+    第二范式：（增加主键）
+   </strong>
+  </p>
+  <p>
+   我们也叫2NF。这个范式的前提是必须要先满足第一范式的要求。当然，2NF的主要特点还是主键（从候选码挑选出来的字段，候选码是能决定唯一一行记录的属性组），所谓主键也是是能够决定一行数据的候选码。也就是说，主键可以是一列或者多列组成的，只要能够根据主键，马上能精确到特定的一行数据即可。
+  </p>
+  <p>
+   这里要注意的是，主键（我们有时候也会叫主属性）内存的值不能为空！
+  </p>
+  <p>
+   <strong>
+    第三范式：（消除非主键的传递关系）
+   </strong>
+  </p>
+  <p>
+   我们也叫3NF。这个范式的前提必须先满足第二范式的要求。第三范式主要是要看表中的非主键字段（列）与主键字段是否含有传递关系。什么叫是否有传递关系呢？
+  </p>
+  <p>
+   假设有一张表如下图：
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662980954265-744da0ae-6883-41be-8070-db21cf26ba01.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_16%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   这个表中的“商品类别名称”、“商品类别描述”其实是可以根据“商品类别编号”这个字段去检索到的，在这个表中具有字段传递关系。如果按照这个表去存储数据库的话，意味着要将“商品类别名称”、“商品类别描述”两个字段的数据重复很多次，使得表的空间产生严重冗余。因此，我们考虑将这个表拆分为两个表，如图所示。
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662980965041-ad667cf2-dbd7-44d8-b064-2f18a6dceda9.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_13%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   这样建立数据表，就符合了数据库第三范式3NF规范。如果我们想要在表内单独增加一个商品类别也相当方便，假设我们系统想要显示出来我们的商品类别，那么就更方便了。
+  </p>
+  <p>
+   <strong>
+    在实际开发中，我们的系统一般符合3NF就可以了，但是在实际工作生产过程中，为了优化我们的系统性能，有时候可能会牺牲数据空间换取工作性能，最终部分表的关系只能符合2NF。这种情况也是非常正常的。
+   </strong>
+  </p>
+  <p>
+   <strong>
+    BC范式：（消除主键内的传递关系）
+   </strong>
+  </p>
+  <p>
+   这个范式也叫BCNF。这个范式的前提条件是要先满足第三范式的要求。在BC范式中，比起第三范式来说还多了一个主键内部传递关系的检查。我们举个例子，看图中的表：
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662980983932-2530dbdd-0234-4d84-9039-9b2a2d51b331.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_13%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   从这个表中，我们可以看出，商品价格是非主属性，店铺、店长、商品名称是主属性（主键），我们可以根据三个字段作为主键去确定找到某个商品的价格。
+  </p>
+  <p>
+   现在，作为老板的你，想要增加一家店铺，店铺也有商品，但是还没有招聘到店长，这个时候怎么办呢？如果按照以上3NF的要求设计的表，就会无法录入信息到表，因为主键是不能为空的。
+  </p>
+  <p>
+   所以，我们需要重新设计这个数据表，把它变成符合BCNF的表。即从主键中再次进行分解成其他的表。重新设计后，我们表如下：
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662980996716-5fda0405-4445-41f5-bc0a-f816aa6a601d.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_13%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   这样设计就符合BCNF
+  </p>
+  <p>
+   <strong>
+    第四范式：（消除一个表内的多个多值）
+   </strong>
+  </p>
+  <p>
+   我们也叫做4NF。这个范式的设计我们需要先满足BC要求的前提要求。在4NF中最为特别的就是在一个表内要消除掉多个多值情况。我们还是举个例子，如下表中存在多值的情况。
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662984403758-8f33fca0-1a49-466b-9deb-0aed5eadfb96.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_11%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   首先，上表的设计是符合BC范式的，但我们也能明显看到一个学生肯定会有多个兴趣爱好的情况，一个学生也会有多个家长。因此，我们也可以这个表调整成4NF规范。下图所示。
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662984414557-e69ebc6e-6d79-44e8-8102-b291f3643674.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_11%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   <strong>
+    第五范式：（消除非候选码的表字段连接依赖）
+   </strong>
+  </p>
+  <p>
+   这个范式我们也叫5NF。这个范式首先前提必须要满足4NF。第五范式是指关系模型R依赖均有R候选码所隐含，这是指在连接时，所连接的属性均为候选码。这个是几近于完美的范式，对字段关系要求极高，但是可能会消耗数据库很大性能。这里不做举例了。主要强调一下，5NF主要就是表连接时注意，只能是候选码才能连接才可以。
+  </p>
+  <h3>
+   MySQL的存储引擎？
+  </h3>
+  <p>
+   问过的一些公司：字节，百度(2021.08)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   <strong>
+    1、数据库存储引擎
+   </strong>
+  </p>
+  <p>
+   数据库存储引擎是数据库底层软件组织，数据库管理系统（DBMS）使用数据引擎进行创建、查询、更新和删除数据。不同的存储引擎提供不同的存储机制、索引技巧、锁定水平等功能，使用不同的存储引擎，还可以获得特定的功能。现在许多不同的数据库管理系统都支持多种不同的数据引擎。
+  </p>
+  <p>
+   因为在关系数据库中数据的存储是以表的形式存储的，所以存储引擎也可以称为表类型(Table Type，即存储和操作此表的类型)。
+  </p>
+  <p>
+   如创建一个InnoDB类型的表：
+  </p>
+  <pre><code class="language-sql" lang="sql">CREATE TABLE `brand` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `brand_name` varchar(64) NOT NULL,
+  `brand_logo` varchar(255) NOT NULL,
+  `description` varchar(255) NOT NULL,
+  `parent_id` int(11) NOT NULL,
+  `layer` int(11) NOT NULL DEFAULT '0',
+  `enabled` int(11) NOT NULL DEFAULT '0',
+  `path` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `brand_name` (`brand_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;</code></pre>
+  <p>
+   <strong>
+    2、MySQL存储引擎
+   </strong>
+  </p>
+  <p>
+   MySQL中常用的四种存储引擎分别是：
+   <strong>
+    MyISAM
+   </strong>
+   <span class="lake-fontsize-12">
+    、
+   </span>
+   <strong>
+    InnoDB
+   </strong>
+   <span class="lake-fontsize-12">
+    、
+   </span>
+   <strong>
+    MEMORY
+   </strong>
+   <span class="lake-fontsize-12">
+    、
+   </span>
+   <strong>
+    ARCHIVE
+   </strong>
+   <span class="lake-fontsize-12">
+    。MySQL 5.5版本后默认的存储引擎为
+   </span>
+   <code>
+    InnoDB
+   </code>
+   <span class="lake-fontsize-12">
+    。
+   </span>
+  </p>
+  <p>
+   MySQL给开发者提供了查询存储引擎的功能，执行以下sql即可查询到mysql中的存储引擎
+  </p>
+  <pre><code class="language-sql" lang="sql">SHOW ENGINES</code></pre>
+  <p>
+   <strong>
+    3、InnoDB存储引擎
+   </strong>
+  </p>
+  <p>
+   InnoDB是事务型数据库的首选引擎，
+   <strong>
+    InnoDB是目前MySQL的默认事务型引擎
+   </strong>
+   <span class="lake-fontsize-12">
+    ，是目前最重要、使用最广泛的存储引擎。
+   </span>
+   <strong>
+    支持事务安全表（ACID），支持行锁定和外键
+   </strong>
+   <span class="lake-fontsize-12">
+    。
+   </span>
+  </p>
+  <p>
+   <strong>
+    优点
+   </strong>
+   <span class="lake-fontsize-12">
+    ：支持事务和崩溃修复能力；引入了行级锁和外键约束。
+   </span>
+  </p>
+  <p>
+   <strong>
+    缺点
+   </strong>
+   <span class="lake-fontsize-12">
+    ：占用的数据空间相对较大。
+   </span>
+  </p>
+  <p>
+   InnoDB主要特性有：
+  </p>
+  <ol list="ua7e0b9d6">
+   <li fid="u9d132275">
+    InnoDB给MySQL提供了具有提交、回滚和崩溃恢复能力的事物安全（ACID兼容）存储引擎。InnoDB锁定在行级并且也在SELECT语句中提供一个类似Oracle的非锁定读。这些功能增加了多用户部署和性能。在SQL查询中，可以自由地将InnoDB类型的表和其他MySQL的表类型混合起来，甚至在同一个查询中也可以混合
+   </li>
+   <li fid="u9d132275">
+    InnoDB是为处理巨大数据量的最大性能设计。它的CPU效率可能是任何其他基于磁盘的关系型数据库引擎锁不能匹敌的
+   </li>
+   <li fid="u9d132275">
+    InnoDB存储引擎完全与MySQL服务器整合，InnoDB存储引擎为在主内存中缓存数据和索引而维持它自己的缓冲池。InnoDB将它的表和索引在一个逻辑表空间中，表空间可以包含数个文件（或原始磁盘文件）。这与MyISAM表不同，比如在MyISAM表中每个表被存放在分离的文件中。InnoDB表可以是任何尺寸，即使在文件尺寸被限制为2GB的操作系统上
+   </li>
+   <li fid="u9d132275">
+    InnoDB支持外键完整性约束，存储表中的数据时，每张表的存储都按主键顺序存放，如果没有显示在表定义时指定主键，InnoDB会为每一行生成一个6字节的ROWID，并以此作为主键
+   </li>
+   <li fid="u9d132275">
+    InnoDB被用在众多需要高性能的大型数据库站点上
+   </li>
+  </ol>
+  <p>
+   InnoDB不创建目录，使用InnoDB时，MySQL将在MySQL数据目录下创建一个名为ibdata1的10MB大小的自动扩展数据文件，以及两个名为ib_logfile0和ib_logfile1的5MB大小的日志文件。
+  </p>
+  <p>
+   <strong>
+    适用场景
+   </strong>
+   <span class="lake-fontsize-12">
+    ：需要事务支持，并且有较高的并发读写频率。
+   </span>
+  </p>
+  <p>
+   <strong>
+    4、MyISAM存储引擎
+   </strong>
+  </p>
+  <p>
+   数据以紧密格式存储。对于只读数据，或者表比较小、可以容忍修复操作，可以使用MyISAM引擎。MyISAM会将表存储在两个文件中，数据文件
+   <code>
+    .MYD
+   </code>
+   <span class="lake-fontsize-12">
+    和索引文件
+   </span>
+   <code>
+    .MYI
+   </code>
+   <span class="lake-fontsize-12">
+    。
+   </span>
+  </p>
+  <p>
+   <strong>
+    优点
+   </strong>
+   <span class="lake-fontsize-12">
+    ：访问速度快。
+   </span>
+  </p>
+  <p>
+   <strong>
+    缺点
+   </strong>
+   <span class="lake-fontsize-12">
+    ：MyISAM不支持事务和行级锁，不支持崩溃后的安全恢复，也不支持外键。
+   </span>
+  </p>
+  <p>
+   MyISAM主要特性有：
+  </p>
+  <ol list="ue19c8c9c">
+   <li fid="u4e738763">
+    大文件（达到63位文件长度）在支持大文件的文件系统和操作系统上被支持
+   </li>
+   <li fid="u4e738763">
+    当把删除和更新及插入操作混合使用的时候，动态尺寸的行产生更少碎片。这要通过合并相邻被删除的块，以及若下一个块被删除，就扩展到下一块自动完成
+   </li>
+   <li fid="u4e738763">
+    每个MyISAM表最大索引数是64，这可以通过重新编译来改变。每个索引最大的列数是16
+   </li>
+   <li fid="u4e738763">
+    最大的键长度是1000字节，这也可以通过编译来改变，对于键长度超过250字节的情况，一个超过1024字节的键将被用上
+   </li>
+   <li fid="u4e738763">
+    BLOB和TEXT列可以被索引，支持FULLTEXT类型的索引，而InnoDB不支持这种类型的索引
+   </li>
+   <li fid="u4e738763">
+    NULL被允许在索引的列中，这个值占每个键的0~1个字节
+   </li>
+   <li fid="u4e738763">
+    所有数字键值以高字节优先被存储以允许一个更高的索引压缩
+   </li>
+   <li fid="u4e738763">
+    每个MyISAM类型的表都有一个AUTO_INCREMENT的内部列，当INSERT和UPDATE操作的时候该列被更新，同时AUTO_INCREMENT列将被刷新。所以说，MyISAM类型表的AUTO_INCREMENT列更新比InnoDB类型的AUTO_INCREMENT更快
+   </li>
+   <li fid="u4e738763">
+    可以把数据文件和索引文件放在不同目录
+   </li>
+   <li fid="u4e738763">
+    每个字符列可以有不同的字符集
+   </li>
+   <li fid="u4e738763">
+    有VARCHAR的表可以固定或动态记录长度
+   </li>
+   <li fid="u4e738763">
+    VARCHAR和CHAR列可以多达64KB
+   </li>
+  </ol>
+  <p>
+   存储格式：
+  </p>
+  <ol list="u751b88f0">
+   <li fid="u17c70f4c">
+    静态表（默认）：字段都是非变长的（每个记录都是固定长度的）。存储非常迅速、容易缓存，出现故障容易恢复；占用空间通常比动态表多。
+   </li>
+   <li fid="u17c70f4c">
+    动态表：占用的空间相对较少，但是频繁的更新删除记录会产生碎片，需要定期执行optimize table或myisamchk -r命令来改善性能，而且出现故障的时候恢复比较困难。
+   </li>
+   <li fid="u17c70f4c">
+    压缩表：使用myisampack工具创建，占用非常小的磁盘空间。因为每个记录是被单独压缩的，所以只有非常小的访问开支。
+   </li>
+  </ol>
+  <p>
+   静态表的数据在存储的时候会按照列的宽度定义补足空格，在返回数据给应用之前去掉这些空格。如果需要保存的内容后面本来就有空格，在返回结果的时候也会被去掉。（其实是数据类型char的行为，动态表中若有这个数据类型也同样会有这个问题）
+  </p>
+  <p>
+   使用MyISAM引擎创建数据库，将产生3个文件。文件的名字以表名字开始，扩展名之处文件类型：frm文件存储表定义、数据文件扩展名为.MYD（MYData）、索引文件扩展名为.MYI（MYIndex）。
+  </p>
+  <p>
+   <strong>
+    适用场景
+   </strong>
+   <span class="lake-fontsize-12">
+    ：如果表主要是用于插入新记录和读出记录，那么选择MyISAM能实现处理高效率。
+   </span>
+  </p>
+  <p>
+   <strong>
+    5、MERGE存储引擎
+   </strong>
+  </p>
+  <p>
+   MERGE存储引擎是一组MyISAM表的组合，这些MyISAM表结构必须完全相同，尽管其使用不如其它引擎突出，但是在某些情况下非常有用。说白了，Merge表就是几个相同MyISAM表的聚合器；Merge表中并没有数据，对Merge类型的表可以进行查询、更新、删除操作，这些操作实际上是对内部的MyISAM表进行操作。
+  </p>
+  <p>
+   场景：对于服务器日志这种信息，一般常用的存储策略是将数据分成很多表，每个名称与特定的时间端相关。例如：可以用12个相同的表来存储服务器日志数据，每个表用对应各个月份的名字来命名。当有必要基于所有12个日志表的数据来生成报表，这意味着需要编写并更新多表查询，以反映这些表中的信息。与其编写这些可能出现错误的查询，不如将这些表合并起来使用一条查询，之后再删除Merge表，而不影响原来的数据，删除Merge表只是删除Merge表的定义，对内部的表没有任何影响。
+  </p>
+  <p>
+   <strong>
+    6、MEMORY存储引擎
+   </strong>
+  </p>
+  <p>
+   MEMORY引擎将数据全部放在内存中，访问速度较快，但是一旦系统奔溃的话，数据都会丢失。
+  </p>
+  <p>
+   MEMORY引擎默认使用哈希索引，将键的哈希值和指向数据行的指针保存在哈希索引中。
+  </p>
+  <p>
+   <strong>
+    优点
+   </strong>
+   <span class="lake-fontsize-12">
+    ：访问速度较快。
+   </span>
+  </p>
+  <p>
+   <strong>
+    缺点
+   </strong>
+   <span class="lake-fontsize-12">
+    ：
+   </span>
+  </p>
+  <ul list="ubb49760a">
+   <li fid="ue5d3b4cd">
+    哈希索引数据不是按照索引值顺序存储，无法用于排序。
+   </li>
+   <li fid="ue5d3b4cd">
+    不支持部分索引匹配查找，因为哈希索引是使用索引列的全部内容来计算哈希值的。
+   </li>
+   <li fid="ue5d3b4cd">
+    只支持等值比较，不支持范围查询。
+   </li>
+   <li fid="ue5d3b4cd">
+    当出现哈希冲突时，存储引擎需要遍历链表中所有的行指针，逐行进行比较，直到找到符合条件的行。
+   </li>
+  </ul>
+  <p>
+   MEMORY主要特性有：
+  </p>
+  <ol list="u7ab47bc4">
+   <li fid="ufb11771c">
+    MEMORY表的每个表可以有多达32个索引，每个索引16列，以及500字节的最大键长度
+   </li>
+   <li fid="ufb11771c">
+    MEMORY存储引擎执行HASH和BTREE缩影
+   </li>
+   <li fid="ufb11771c">
+    可以在一个MEMORY表中有非唯一键值
+   </li>
+   <li fid="ufb11771c">
+    MEMORY表使用一个固定的记录长度格式
+   </li>
+   <li fid="ufb11771c">
+    MEMORY不支持BLOB或TEXT列
+   </li>
+   <li fid="ufb11771c">
+    MEMORY支持AUTO_INCREMENT列和对可包含NULL值的列的索引
+   </li>
+   <li fid="ufb11771c">
+    MEMORY表在所由客户端之间共享（就像其他任何非TEMPORARY表）
+   </li>
+   <li fid="ufb11771c">
+    MEMORY表内存被存储在内存中，内存是MEMORY表和服务器在查询处理时的空闲中，创建的内部表共享
+   </li>
+   <li fid="ufb11771c">
+    当不再需要MEMORY表的内容时，要释放被MEMORY表使用的内存，应该执行DELETE FROM或TRUNCATE TABLE，或者删除整个表（使用DROP TABLE）
+   </li>
+  </ol>
+  <p>
+   MEMORY存储引擎默认使用哈希（HASH）索引，其速度比使用B-+Tree型要快，但也可以使用B树型索引。由于这种存储引擎所存储的数据保存在内存中，所以其保存的数据具有不稳定性，比如如果mysqld进程发生异常、重启或计算机关机等等都会造成这些数据的消失，所以这种存储引擎中的表的生命周期很短，一般只使用一次。现在mongodb、redis等NOSQL数据库愈发流行，MEMORY存储引擎的使用场景越来越少。
+  </p>
+  <p>
+   场景：如果需要该数据库中一个用于查询的临时表。
+  </p>
+  <p>
+   <strong>
+    7、ARCHIVE存储引擎
+   </strong>
+  </p>
+  <p>
+   Archive是归档的意思，在归档之后很多的高级功能就不再支持了，仅仅支持最基本的插入和查询两种功能。在MySQL 5.5版以前，Archive是不支持索引，但是在MySQL 5.5以后的版本中就开始支持索引了。
+   <strong>
+    Archive拥有很好的压缩机制
+   </strong>
+   <span class="lake-fontsize-12">
+    ，它使用zlib压缩库，在记录被请求时会实时压缩，所以它经常被用来当做仓库使用。
+   </span>
+  </p>
+  <p>
+   场景：由于
+   <strong>
+    高压缩
+   </strong>
+   <span class="lake-fontsize-12">
+    和
+   </span>
+   <strong>
+    快速插入
+   </strong>
+   <span class="lake-fontsize-12">
+    的特点Archive非常适合作为日志表的存储引擎（适合存储大量独立的、作为历史记录的数据），但是前提是不经常对该表进行查询操作（这种引擎不支持索引，所以查询性能较差）。
+   </span>
+  </p>
+  <p>
+   <strong>
+    8、CSV存储引擎
+   </strong>
+  </p>
+  <p>
+   使用该引擎的MySQL数据库表会在MySQL安装目录data文件夹中的和该表所在数据库名相同的目录中生成一个.CSV文件（所以，它可以将CSV类型的文件当做表进行处理），这种文件是一种普通文本文件，每个数据行占用一个文本行。该种类型的存储引擎不支持索引，即使用该种类型的表没有主键列；另外也不允许表中的字段为None。csv的编码转换需要格外注意。
+  </p>
+  <p>
+   场景：这种引擎支持从数据库中拷入/拷出CSV文件。如果从电子表格软件输出一个CSV文件，将其存放在MySQL服务器的数据目录中，服务器就能够马上读取相关的CSV文件。同样，如果写数据库到一个CSV表，外部程序也可以立刻读取它。在实现某种类型的日志记录时，CSV表作为一种数据交换格式，特别有用。
+  </p>
+  <p>
+   <strong>
+    9、BLACKHOLE存储引擎（黑洞引擎）
+   </strong>
+  </p>
+  <p>
+   该存储引擎支持事务，而且支持mvcc的行级锁，写入这种引擎表中的任何数据都会消失，主要用于做日志记录或同步归档的中继存储，这个存储引擎除非有特别目的，否则不适合使用。
+  </p>
+  <p>
+   场景：如果配置一主多从的话，多个从服务器会在主服务器上分别开启自己相对应的线程，执行binlogdump命令而且多个此类进程并不是共享的。为了避免因多个从服务器同时请求同样的事件而导致主机资源耗尽，可以单独建立一个伪的从服务器或者叫分发服务器。
+  </p>
+  <p>
+   <strong>
+    10、PERFORMANCE_SCHEMA存储引擎
+   </strong>
+  </p>
+  <p>
+   该引擎主要用于收集数据库服务器性能参数。这种引擎提供以下功能：提供进程等待的详细信息，包括锁、互斥变量、文件信息；保存历史的事件汇总信息，为提供MySQL服务器性能做出详细的判断；对于新增和删除监控事件点都非常容易，并可以随意改变mysql服务器的监控周期，例如（CYCLE、MICROSECOND）。 MySQL用户是不能创建存储引擎为PERFORMANCE_SCHEMA的表。
+  </p>
+  <p>
+   场景： DBA能够较明细得了解性能降低可能是由于哪些瓶颈。
+  </p>
+  <p>
+   <strong>
+    11、Federated存储引擎
+   </strong>
+  </p>
+  <p>
+   该存储引擎可以不同的Mysql服务器联合起来，逻辑上组成一个完整的数据库。这种存储引擎非常适合数据库分布式应用。
+  </p>
+  <p>
+   Federated存储引擎可以使你在本地数据库中访问远程数据库中的数据，针对federated存储引擎表的查询会被发送到远程数据库的表上执行，本地是不存储任何数据的。
+  </p>
+  <p>
+   缺点：
+  </p>
+  <p>
+   1）对本地虚拟表的结构修改，并不会修改远程表的结构
+  </p>
+  <p>
+   2）truncate 命令，会清除远程表数据
+  </p>
+  <p>
+   3）drop命令只会删除虚拟表，并不会删除远程表
+  </p>
+  <p>
+   4）不支持 alter table 命令
+  </p>
+  <p>
+   5）select count(
+   <em>
+    ), select
+   </em>
+   <span class="lake-fontsize-12">
+    from limit M, N 等语句执行效率非常低，数据量较大时存在很严重的问题，但是按主键或索引列查询，则很快，如以下查询就非常慢（假设 id 为主索引）
+   </span>
+  </p>
+  <pre><code class="language-sql" lang="sql">select id from db.tablea where id &gt;100 limit 10 ;</code></pre>
+  <p>
+   而以下查询就很快：
+  </p>
+  <pre><code class="language-sql" lang="sql">select id from db.tablea where id &gt;100 and id&lt;150;</code></pre>
+  <p>
+   6）如果虚拟虚拟表中字段未建立索引，而实体表中为此字段建立了索引，此种情况下，性能也相当差。但是当给虚拟表建立索引后，性能恢复正常。
+  </p>
+  <p>
+   7）类似 where name like "str%" limit 1 的查询，即使在 name 列上创建了索引，也会导致查询过慢，是因为federated引擎会将所有满足条件的记录读取到本地，再进行 limit 处理。
+  </p>
+  <p>
+   场景： dblink。
+  </p>
+  <p>
+   <strong>
+    12、存储引擎的选择
+   </strong>
+  </p>
+  <table class="lake-table" margin="True" style="width: 750px">
+   <colgroup>
+    <col width="150"/>
+    <col width="150"/>
+    <col width="150"/>
+    <col width="150"/>
+    <col width="150"/>
+   </colgroup>
+   <tbody>
+    <tr>
+     <td>
+      <p>
+       <strong>
+        功 能
+       </strong>
+      </p>
+     </td>
+     <td>
+      <p>
+       <strong>
+        MYISAM
+       </strong>
+      </p>
+     </td>
+     <td>
+      <p>
+       <strong>
+        Memory
+       </strong>
+      </p>
+     </td>
+     <td>
+      <p>
+       <strong>
+        InnoDB
+       </strong>
+      </p>
+     </td>
+     <td>
+      <p>
+       <strong>
+        Archive
+       </strong>
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p>
+       存储限制
+      </p>
+     </td>
+     <td>
+      <p>
+       256TB
+      </p>
+     </td>
+     <td>
+      <p>
+       RAM
+      </p>
+     </td>
+     <td>
+      <p>
+       64TB
+      </p>
+     </td>
+     <td>
+      <p>
+       None
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p>
+       支持事物
+      </p>
+     </td>
+     <td>
+      <p>
+       No
+      </p>
+     </td>
+     <td>
+      <p>
+       No
+      </p>
+     </td>
+     <td>
+      <p>
+       Yes
+      </p>
+     </td>
+     <td>
+      <p>
+       No
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p>
+       支持全文索引
+      </p>
+     </td>
+     <td>
+      <p>
+       Yes
+      </p>
+     </td>
+     <td>
+      <p>
+       No
+      </p>
+     </td>
+     <td>
+      <p>
+       No
+      </p>
+     </td>
+     <td>
+      <p>
+       No
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p>
+       支持数索引
+      </p>
+     </td>
+     <td>
+      <p>
+       Yes
+      </p>
+     </td>
+     <td>
+      <p>
+       Yes
+      </p>
+     </td>
+     <td>
+      <p>
+       Yes
+      </p>
+     </td>
+     <td>
+      <p>
+       No
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p>
+       支持哈希索引
+      </p>
+     </td>
+     <td>
+      <p>
+       No
+      </p>
+     </td>
+     <td>
+      <p>
+       Yes
+      </p>
+     </td>
+     <td>
+      <p>
+       No
+      </p>
+     </td>
+     <td>
+      <p>
+       No
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p>
+       支持数据缓存
+      </p>
+     </td>
+     <td>
+      <p>
+       No
+      </p>
+     </td>
+     <td>
+      <p>
+       N/A
+      </p>
+     </td>
+     <td>
+      <p>
+       Yes
+      </p>
+     </td>
+     <td>
+      <p>
+       No
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p>
+       支持外键
+      </p>
+     </td>
+     <td>
+      <p>
+       No
+      </p>
+     </td>
+     <td>
+      <p>
+       No
+      </p>
+     </td>
+     <td>
+      <p>
+       Yes
+      </p>
+     </td>
+     <td>
+      <p>
+       No
+      </p>
+     </td>
+    </tr>
+   </tbody>
+  </table>
+  <h3>
+   数据库有哪些锁？
+  </h3>
+  <p>
+   问过的一些公司：滴滴，ebay，蔚来(2021.07)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   <strong>
+    1、锁
+   </strong>
+  </p>
+  <p>
+   锁是网络数据库中的一个非常重要的概念，当多个用户同时对数据库并发操作时，会带来数据不一致的问题，所以，锁主要用于多用户环境下保证数据库完整性和一致性。
+  </p>
+  <p>
+   数据库锁出现的目的：处理并发问题
+  </p>
+  <p>
+   并发控制的主要采用的技术手段：乐观锁、悲观锁和时间戳。
+  </p>
+  <p>
+   <strong>
+    2、锁分类
+   </strong>
+  </p>
+  <p>
+   从数据库系统角度分为三种：排他锁、共享锁、更新锁。
+  </p>
+  <p>
+   从程序员角度分为两种：一种是悲观锁，一种乐观锁。
+  </p>
+  <p>
+   <strong>
+    3、悲观锁（Pessimistic Lock）
+   </strong>
+  </p>
+  <p>
+   顾名思义，很悲观，每次去拿数据的时候都认为别人会修改，所以每次在拿数据的时候都会上锁，这样别人拿这个数据就会block（阻塞），直到它拿锁。
+  </p>
+  <p>
+   悲观锁（Pessimistic Lock）：正如其名，具有强烈的独占和排他特性。它指的是对数据被外界（包括本系统当前的其他事务，以及来自外部系统的事务处理）修改持保守态度，因此，在整个数据处理过程中，将数据处于锁定状态。悲观锁的实现，往往依靠数据库提供的锁机制（也只有数据库层提供的锁机制才能真正保证数据访问的排他性，否则，即使在本系统中实现了加锁机制，也无法保证外部系统不会修改数据）。
+  </p>
+  <p>
+   传统的关系数据库里用到了很多这种锁机制，比如行锁、表锁、读锁、写锁等，都是在操作之前先上锁。
+  </p>
+  <p>
+   <strong>
+    悲观锁按使用性质划分
+   </strong>
+  </p>
+  <p>
+   1）共享锁（Share Lock）
+  </p>
+  <p>
+   S锁，也叫读锁，用于所有的只读数据操作。共享锁是非独占的，允许多个并发事务读取其锁定的资源。
+  </p>
+  <p>
+   <strong>
+    性质
+   </strong>
+  </p>
+  <ul list="u84a35940">
+   <li fid="u2788a78b">
+    多个事务可封锁同一个共享页；
+   </li>
+   <li fid="u2788a78b">
+    任何事务都不能修改该页；
+   </li>
+   <li fid="u2788a78b">
+    通常是该页被读取完毕，S锁立即被释放。
+   </li>
+  </ul>
+  <p>
+   在SQL Server中，默认情况下，数据被读取后，立即释放共享锁。
+  </p>
+  <p>
+   例如，执行查询语句“SELECT * FROM my_table”时，首先锁定第一页，读取之后，释放对第一页的锁定，然后锁定第二页。这样，就允许在读操作过程中，修改未被锁定的第一页。
+  </p>
+  <p>
+   例如，语句“SELECT * FROM my_table HOLDLOCK”就要求在整个查询过程中，保持对表的锁定，直到查询完成才释放锁定。
+  </p>
+  <p>
+   2）排他锁（Exclusive Lock）
+  </p>
+  <p>
+   X锁，也叫写锁，表示对数据进行写操作。如果一个事务对对象加了排他锁，其他事务就不能再给它加任何锁了。（某个顾客把试衣间从里面反锁了，其他顾客想要使用这个试衣间，就只有等待锁从里面打开了。）
+  </p>
+  <p>
+   <strong>
+    性质
+   </strong>
+  </p>
+  <ul list="ua097243c">
+   <li fid="ua47427a5">
+    仅允许一个事务封锁此页；
+   </li>
+   <li fid="ua47427a5">
+    其他任何事务必须等到X锁被释放才能对该页进行访问；
+   </li>
+   <li fid="ua47427a5">
+    X锁一直到事务结束才能被释放。
+   </li>
+  </ul>
+  <p>
+   产生排他锁的SQL语句如下：select * from ad_plan for update;
+  </p>
+  <p>
+   3）更新锁
+  </p>
+  <p>
+   U锁，在修改操作的初始化阶段用来锁定可能要被修改的资源，这样可以避免使用共享锁造成的死锁现象。
+  </p>
+  <p>
+   <strong>
+    性质
+   </strong>
+  </p>
+  <ul list="u647f1cfe">
+   <li fid="u34ddce56">
+    用来预定要对此页施加X锁，它允许其他事务读，但不允许再施加U锁或X锁；
+   </li>
+   <li fid="u34ddce56">
+    当被读取的页要被更新时，则升级为X锁；
+   </li>
+   <li fid="u34ddce56">
+    U锁一直到事务结束时才能被释放。
+   </li>
+  </ul>
+  <p>
+   <strong>
+    悲观锁按作用范围划分为：行锁、表锁。
+   </strong>
+  </p>
+  <p>
+   1）行锁
+  </p>
+  <p>
+   锁的作用范围是行级别。
+  </p>
+  <p>
+   2）表锁
+  </p>
+  <p>
+   锁的作用范围是整张表。
+  </p>
+  <p>
+   数据库能够确定那些行需要锁的情况下使用行锁，如果不知道会影响哪些行的时候就会使用表锁。
+  </p>
+  <p>
+   举个例子，一个用户表user，有主键id和用户生日birthday。
+  </p>
+  <p>
+   当你使用update … where id=?这样的语句时，数据库明确知道会影响哪一行，它就会使用行锁；
+  </p>
+  <p>
+   当你使用update … where birthday=?这样的的语句时，因为事先不知道会影响哪些行就可能会使用表锁。
+  </p>
+  <p>
+   <strong>
+    4、乐观锁（Optimistic Lock）
+   </strong>
+  </p>
+  <p>
+   顾名思义，就是很乐观，每次去拿数据的时候都认为别人不会修改，所以，不会上锁。但是在更新的时候会判断一下在此期间别人有没有更新这个数据，可以使用版本号等机制。
+  </p>
+  <p>
+   乐观锁（ Optimistic Locking ）： 相对悲观锁而言，乐观锁机制采取了更加宽松的加锁机制。
+  </p>
+  <p>
+   悲观锁大多数情况下依靠数据库的锁机制实现，以保证操作最大程度的独占性。但随之而来的就是数据库性能的大量开销，特别是对长事务而言，这样的开销往往无法承受。而乐观锁机制在一定程度上解决了这个问题。
+  </p>
+  <p>
+   乐观锁，大多是基于数据版本（ Version ）记录机制实现。
+  </p>
+  <p>
+   数据版本：为数据增加一个版本标识，在基于数据库表的版本解决方案中，一般是通过为数据库表增加一个 “version” 字段来实现。读取出数据时，将此版本号一同读出，之后更新时，对此版本号加一。此时，将提交数据的版本数据与数据库表对应记录的当前版本信息进行比对，如果提交的数据版本号大于数据库表当前版本号，则予以更新，否则认为是过期数据。
+  </p>
+  <p>
+   乐观锁适用于多读的应用类型，这样可以提高吞吐量，像数据库如果提供类似于write_condition机制的其实都是提供的乐观锁。
+  </p>
+  <p>
+   <strong>
+    乐观锁的实现方式
+   </strong>
+  </p>
+  <p>
+   1）版本号（version）
+  </p>
+  <p>
+   就是给数据增加一个版本标识，在数据库上就是表中增加一个version字段，每次更新把这个字段加1，读取数据的时候把version读出来，更新的时候比较version，如果还是开始读取的version就可以更新了，如果现在的version比老的version大，说明有其他事务更新了该数据，并增加了版本号，这时候得到一个无法更新的通知，用户自行根据这个通知来决定怎么处理，比如重新开始一遍。这里的关键是判断version和更新两个动作需要作为一个原子单元执行，否则在你判断可以更新以后正式更新之前有别的事务修改了version，这个时候你再去更新就可能会覆盖前一个事务做的更新，造成第二类丢失更新，所以你可以使用update … where … and version=”old version”这样的语句，根据返回结果是0还是非0来得到通知，如果是0说明更新没有成功，因为version被改了，如果返回非0说明更新成功。
+  </p>
+  <p>
+   2）时间戳（使用数据库服务器的时间戳）
+  </p>
+  <p>
+   和版本号基本一样，只是通过时间戳来判断而已，注意时间戳要使用数据库服务器的时间戳不能是业务系统的时间。
+  </p>
+  <p>
+   3）待更新字段
+  </p>
+  <p>
+   和版本号方式相似，只是不增加额外字段，直接使用有效数据字段做版本控制信息，因为有时候我们可能无法改变旧系统的数据库表结构。假设有个待更新字段叫count,先去读取这个count,更新的时候去比较数据库中count的值是不是我期望的值（即开始读的值），如果是就把我修改的count的值更新到该字段，否则更新失败。java的基本类型的原子类型对象如AtomicInteger就是这种思想。
+  </p>
+  <p>
+   4）所有字段
+  </p>
+  <p>
+   和待更新字段类似，只是使用所有字段做版本控制信息，只有所有字段都没变化才会执行更新。
+  </p>
+  <p>
+   <strong>
+    乐观锁几种方式的区别
+   </strong>
+  </p>
+  <p>
+   新系统设计可以使用version方式和timestamp方式，需要增加字段，应用范围是整条数据，不论那个字段修改都会更新version,也就是说两个事务更新同一条记录的两个不相关字段也是互斥的，不能同步进行。旧系统不能修改数据库表结构的时候使用数据字段作为版本控制信息，不需要新增字段，待更新字段方式只要其他事务修改的字段和当前事务修改的字段没有重叠就可以同步进行，并发性更高。
+  </p>
+  <p>
+   <strong>
+    并发控制会造成两种锁
+   </strong>
+  </p>
+  <ul list="u8cbc8dc8">
+   <li fid="u45459a80">
+    活锁
+   </li>
+   <li fid="u45459a80">
+    死锁
+   </li>
+  </ul>
+  <p>
+   并发控制会造成活锁和死锁，就像操作系统那样，会因为互相等待而导致。
+  </p>
+  <p>
+   1）活锁
+  </p>
+  <p>
+   <strong>
+    定义
+   </strong>
+   <span class="lake-fontsize-12">
+    ：指的是T1封锁了数据R，T2同时也请求封锁数据R，T3也请求封锁数据R，当T1释放了锁之后，T3会锁住R，T4也请求封锁R，则T2就会一直等待下去。
+   </span>
+  </p>
+  <p>
+   <strong>
+    解决方法
+   </strong>
+   <span class="lake-fontsize-12">
+    ：采用“先来先服务”策略可以避免。
+   </span>
+  </p>
+  <p>
+   2）死锁
+  </p>
+  <p>
+   <strong>
+    定义
+   </strong>
+   <span class="lake-fontsize-12">
+    ：就是我等你，你又等我，双方就会一直等待下去。比如：T1封锁了数据R1，正请求对R2封锁，而T2封住了R2，正请求封锁R1，这样就会导致死锁，死锁这种没有完全解决的方法，只能尽量预防。
+   </span>
+  </p>
+  <p>
+   <strong>
+    预防方法
+   </strong>
+   <span class="lake-fontsize-12">
+    ：
+   </span>
+  </p>
+  <ul list="u4f272629">
+   <li fid="u33d3306a">
+    一次封锁法，指的是一次性把所需要的数据全部封锁住，但是这样会扩大了封锁的范围，降低系统的并发度；
+   </li>
+   <li fid="u33d3306a">
+    顺序封锁法，指的是事先对数据对象指定一个封锁顺序，要对数据进行封锁，只能按照规定的顺序来封锁，但是这个一般不大可能的。
+   </li>
+  </ul>
+  <p>
+   <strong>
+    系统判定死锁的方法
+   </strong>
+   <span class="lake-fontsize-12">
+    ：
+   </span>
+  </p>
+  <ul list="ue50d7122">
+   <li fid="u8680aa42">
+    超时法：如果某个事物的等待时间超过指定时限，则判定为出现死锁；
+   </li>
+   <li fid="u8680aa42">
+    等待图法：如果事务等待图中出现了回路，则判断出现了死锁。
+   </li>
+  </ul>
+  <p>
+   对于解决死锁的方法，只能是撤销一个处理死锁代价最小的事务，释放此事务持有的所有锁，同时对撤销的事务所执行的数据修改操作必须加以恢复。
+  </p>
+  <h3>
+   说下悲观锁、乐观锁
+  </h3>
+  <p>
+   问过的一些公司：字节(2021.07)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   乐观锁：对于数据冲突保持一种乐观态度，操作数据时不会对操作的数据进行加锁，只有到数据提交的时候才通过一种机制来验证数据是否存在冲突。
+  </p>
+  <p>
+   悲观锁：对于数据冲突保持一种悲观态度，在修改数据之前把数据锁住，然后再对数据进行读写，在它释放锁之前任何人都不能对其数据进行操作，直到前面一个人把锁释放后下一个人数据加锁才可对数据进行加锁，然后才可以对数据进行操作，一般数据库本身锁的机制都是基于悲观锁的机制实现的。
+  </p>
+  <h3>
+   分布式数据库是什么？
+  </h3>
+  <p>
+   问过的一些公司：滴滴
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   <strong>
+    1、分布式数据库是什么？
+   </strong>
+  </p>
+  <p>
+   分布式数据库系统：一个粗略的定义是“分布式数据库由一组数据组成，这些数据物理上分布在计算机网络的不同节点上（亦称场地）上，逻辑上是属于同一个系统。”
+  </p>
+  <p>
+   这里强调两点：
+  </p>
+  <ul list="u097e0ab7">
+   <li fid="u0107c372">
+    分布性：数据库中的数据不是存储在同一场地，更确切的说，不存储在同一计算机的存储设备上，这就可以和集中式数据库相互区别。
+   </li>
+   <li fid="u0107c372">
+    逻辑整体性：这些数据逻辑上是互相联系的，是一个整体（逻辑上如同集中数据库）。
+   </li>
+  </ul>
+  <p>
+   精确的分布式数据库定义：分布式数据库是由一组数据组成的，这组数据分布在计算机网络中的不同的计算机上，网络中的每个节点具有独立处理的能力（称为场地自治），可以执行局部应用。同时，每个节点也能通过网络通信子系统执行全局应用。与之前的定义相比，更注重场地自治性以及自治场地之间的协作性。
+  </p>
+  <p>
+   <strong>
+    2、分布式数据库系统的特点
+   </strong>
+  </p>
+  <p>
+   分布式数据库系统是在集中式数据库系统技术的基础上发展起来的。它具有自己的特性和特征。集中式数据库的许多概念和技术，如数据独立性、数据共享性和减少冗余度、并发控制、完整性、安全性和恢复等。
+  </p>
+  <p>
+   1）数据独立性
+  </p>
+  <p>
+   在集中式数据库系统中，数据独立性包括两个方面：数据的逻辑独立性和数据的物理独立性。其含义是用户程序与数据的全局逻辑结构及数据的存储结构无关。在分布式数据库系统中除了数据的逻辑独立性和物理独立性外，还有数据分布独立性亦称为分布透明性。分布透明性是指用户不必关心数据的逻辑分片，不必关心数据物理位置分布的细节，也不必关心重复副本（冗余数据问题）一致性问题 ，同时也不必关心局部场地上数据库支持哪种数据模型。
+  </p>
+  <p>
+   2）集中于自治相结合的控制结构
+  </p>
+  <p>
+   数据库是多个用户共享的资源，在集中式数据库系统中，为了保证数据库的安全性和完整性，对共享数据库的控制是集中的，并有DBA负责监督和维护系统的正常运行。
+  </p>
+  <p>
+   在分布式数据库系统中，数据的共享有两个层次：
+  </p>
+  <ul list="u01e8b8e4">
+   <li fid="u0fc0cc43">
+    局部共享：即在局部数据库中存储局部场地各用户的共享数据，这些数据是本场地用户常用的。
+   </li>
+   <li fid="u0fc0cc43">
+    全局共享：即在分布式数据库系统的各个场地也存储其它场地的用户共享的数据，支持系统的全局应用。
+   </li>
+  </ul>
+  <p>
+   因此，相应的控制机构也具有两个层次：集中和自治。
+  </p>
+  <p>
+   3）适当增加数据冗余度
+  </p>
+  <p>
+   在集中式数据库系统中，尽量减少冗余度是系统目标之一。其原因是，冗余数据不仅浪费空间，而且容易造成各数据副本之间的不一致性，为了保证数据的一致性，系统要付出一定的维护代价，减少冗余度的目标是用数据共享来达到的。
+  </p>
+  <p>
+   而在分布式数据系统中却希望存储必要的荣誉数据，在不同的场地存储同一数据的多个副本，其原因是：
+  </p>
+  <ul list="u7bfdb37b">
+   <li fid="u6432cd0c">
+    提高系统的可靠性、可用性：当某一场地出现故障时，系统可以对另一场地上的相同副本进行操作，不会因为一处故障而造成整个系统的瘫痪。
+   </li>
+   <li fid="u6432cd0c">
+    提高系统性能：系统可以选择用户最近的数据副本进行操作，减少通信代价，改善整个系统的性能。冗余副本之间数据不一致的问题是分布式数据库系统必须着力解决的问题。
+   </li>
+  </ul>
+  <p>
+   4）全局一致性、可串行性和可恢复性
+  </p>
+  <p>
+   分布式数据库系统中个局部数据库应满足集中式数据库的一致性、并发事务的可串行性和可恢复性。除此以外还应保证数据库的全局一致性、全局并发食物的可串行性和系统的全局可恢复性。
+  </p>
+  <h3>
+   死锁产生的条件是什么？如何预防死锁？
+  </h3>
+  <p>
+   可回答：死锁是什么，如何破坏死锁
+  </p>
+  <p>
+   问过的一些公司：多益，陌陌(2021.10)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   <strong>
+    1、死锁（Deadlock）
+   </strong>
+  </p>
+  <p>
+   所谓死锁：是指两个或两个以上的进程在执行过程中，因争夺资源而造成的一种互相等待的现象，若无外力作用，它们都将无法推进下去。此时称系统处于死锁状态或系统产生了死锁，这些永远在互相等待的进程称为死锁进程。
+  </p>
+  <p>
+   由于资源占用是互斥的，当某个进程提出申请资源后，使得有关进程在无外力协助下，永远分配不到必需的资源而无法继续运行，这就产生了一种特殊现象死锁。
+  </p>
+  <p>
+   一种情形，此时执行程序中两个或多个线程发生永久堵塞（等待），每个线程都在等待被其他线程占用并堵塞了的资源。例如，如果线程A锁住了记录1并等待记录2，而线程B锁住了记录2并等待记录1，这样两个线程就发生了死锁现象。
+  </p>
+  <p>
+   计算机系统中,如果系统的资源分配策略不当，更常见的可能是程序员写的程序有错误等，则会导致进程因竞争资源不当而产生死锁的现象。
+  </p>
+  <p>
+   锁有多种实现方式，比如意向锁，共享－排他锁，锁表，树形协议，时间戳协议等等。锁还有多种粒度，比如可以在表上加锁，也可以在记录上加锁。
+  </p>
+  <p>
+   <strong>
+    产生死锁的原因
+   </strong>
+   <span class="lake-fontsize-12">
+    主要是：
+   </span>
+  </p>
+  <ul list="u5c91879b">
+   <li fid="ube3dfae6">
+    系统资源不足。
+   </li>
+   <li fid="ube3dfae6">
+    进程运行推进的顺序不合适。
+   </li>
+   <li fid="ube3dfae6">
+    资源分配不当等。
+   </li>
+  </ul>
+  <p>
+   如果系统资源充足，进程的资源请求都能够得到满足，死锁出现的可能性就很低，否则就会因争夺有限的资源而陷入死锁。其次，进程运行推进顺序与速度不同，也可能产生死锁。
+  </p>
+  <p>
+   <strong>
+    产生死锁的四个必要条件
+   </strong>
+   <span class="lake-fontsize-12">
+    ：
+   </span>
+  </p>
+  <ul list="u788a7d7f">
+   <li fid="u7ff47037">
+    互斥条件：一个资源每次只能被一个进程使用。
+   </li>
+   <li fid="u7ff47037">
+    请求与保持条件：一个进程因请求资源而阻塞时，对已获得的资源保持不放。
+   </li>
+   <li fid="u7ff47037">
+    不剥夺条件:进程已获得的资源，在末使用完之前，不能强行剥夺。
+   </li>
+   <li fid="u7ff47037">
+    循环等待条件:若干进程之间形成一种头尾相接的循环等待资源关系。
+   </li>
+  </ul>
+  <p>
+   这四个条件是死锁的必要条件，只要系统发生死锁，这些条件必然成立，而只要上述条件之一不满足，就不会发生死锁。
+  </p>
+  <p>
+   <strong>
+    2、死锁的避免与预防
+   </strong>
+  </p>
+  <p>
+   <strong>
+    死锁避免的基本思想：
+   </strong>
+   <span class="lake-fontsize-12">
+    系统对进程发出每一个系统能够满足的资源申请进行动态检查，并根据检查结果决定是否分配资源，如果分配后系统可能发生死锁,则不予分配，否则予以分配。这是一种保证系统不进入死锁状态的动态策略。
+   </span>
+  </p>
+  <p>
+   理解了死锁的原因，尤其是产生死锁的四个必要条件，就可以最大可能地避免、预防和解除死锁。只要打破四个必要条件之一就能有效预防死锁的发生：
+  </p>
+  <p>
+   <strong>
+    打破互斥条件
+   </strong>
+   <span class="lake-fontsize-12">
+    ：改造独占性资源为虚拟资源，大部分资源已无法改造。
+   </span>
+  </p>
+  <p>
+   <strong>
+    打破不可抢占条件
+   </strong>
+   <span class="lake-fontsize-12">
+    ：当一进程占有一独占性资源后又申请一独占性资源而无法满足，则退出原占有的资源。
+   </span>
+  </p>
+  <p>
+   <strong>
+    打破占有且申请条件
+   </strong>
+   <span class="lake-fontsize-12">
+    ：采用资源预先分配策略，即进程运行前申请全部资源，满足则运行，不然就等待，这样就不会占有且申请。
+   </span>
+  </p>
+  <p>
+   <strong>
+    打破循环等待条件
+   </strong>
+   <span class="lake-fontsize-12">
+    ：实现资源有序分配策略，对所有设备实现分类编号，所有进程只能采用按序号递增的形式申请资源。
+   </span>
+  </p>
+  <p>
+   <strong>
+    3、死锁避免和死锁预防的区别
+   </strong>
+  </p>
+  <p>
+   死锁预防是设法至少破坏产生死锁的四个必要条件之一，严格的防止死锁的出现；而死锁避免则不那么严格的限制产生死锁的必要条件的存在，因为即使死锁的必要条件存在，也不一定发生死锁。死锁避免是在系统运行过程中注意避免死锁的最终发生。
+  </p>
+  <h3>
+   介绍下数据库的join（内连接、外连接、全连接），内连接和外连接（左、右连接）的区别
+  </h3>
+  <p>
+   可回答：sql的left join和inner join的区别？
+  </p>
+  <p>
+   问过的一些公司：字节，字节(2021.08)，猿辅导，美团x3，网易云音乐
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   sql中的连接查询有inner join(内连接）、left join(左连接)、right join（右连接）、full join（全连接）四种方式，它们之间其实并没有太大区别，仅仅是查询出来的结果有所不同。
+  </p>
+  <p>
+   例如有以下两张表：
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662985484256-4fa3a4c3-755f-46b6-bb2e-ae3cbc13e876.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_18%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   Orders表通过外键Id_P和Persons表进行关联。
+  </p>
+  <p>
+   <strong>
+    1、inner join
+   </strong>
+  </p>
+  <p>
+   在两张表进行连接查询时，只保留两张表中完全匹配的结果集。
+  </p>
+  <p>
+   sql如下：
+  </p>
+  <pre><code class="language-sql" lang="sql">ELECT Persons.LastName, Persons.FirstName, Orders.OrderNo
+FROM Persons
+INNER JOIN Orders
+ON Persons.Id_P=Orders.Id_P
+ORDER BY Persons.LastName</code></pre>
+  <p>
+   查询结果集：
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662985547932-f8bee74e-50d6-4451-8e09-890618ec4e61.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_17%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   此种连接方式Orders表中Id_P字段在Persons表中找不到匹配的，则不会列出来。
+  </p>
+  <p>
+   <strong>
+    2、left join
+   </strong>
+  </p>
+  <p>
+   在两张表进行连接查询时，会返回左表所有的行，即使在右表中没有匹配的记录。
+  </p>
+  <p>
+   sql如下：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT Persons.LastName, Persons.FirstName, Orders.OrderNo
+FROM Persons
+LEFT JOIN Orders
+ON Persons.Id_P=Orders.Id_P
+ORDER BY Persons.LastName</code></pre>
+  <p>
+   查询结果如下：
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662985567189-7f4933c1-1335-40d5-a4be-050bad6c4e9e.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_17%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   可以看到，左表（Persons表）中LastName为Bush的行的Id_P字段在右表（Orders表）中没有匹配，但查询结果仍然保留该行。
+  </p>
+  <p>
+   <strong>
+    3、right join
+   </strong>
+  </p>
+  <p>
+   在两张表进行连接查询时，会返回右表所有的行，即使在左表中没有匹配的记录。
+  </p>
+  <p>
+   sql如下：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT Persons.LastName, Persons.FirstName, Orders.OrderNo
+FROM Persons
+RIGHT JOIN Orders
+ON Persons.Id_P=Orders.Id_P
+ORDER BY Persons.LastName</code></pre>
+  <p>
+   查询结果如下：
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662985587735-ab101073-38b8-475a-a54c-d5b43831f0c5.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_18%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   Orders表中最后一条记录Id_P字段值为65，在左表中没有记录与之匹配，但依然保留。
+  </p>
+  <p>
+   <strong>
+    4、full join
+   </strong>
+  </p>
+  <p>
+   在两张表进行连接查询时，返回左表和右表中所有没有匹配的行。
+  </p>
+  <p>
+   sql如下：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT Persons.LastName, Persons.FirstName, Orders.OrderNo
+FROM Persons
+FULL JOIN Orders
+ON Persons.Id_P=Orders.Id_P
+ORDER BY Persons.LastName</code></pre>
+  <p>
+   查询结果如下：
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662985767740-05c5b687-edd6-4894-bb5d-df84ddea67e7.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_17%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   查询结果是left join和right join的并集。
+  </p>
+  <h3>
+   MySQL的join过程
+  </h3>
+  <p>
+   问过的一些公司：百度
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   使用join的通用结构如下：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT &lt;row_list&gt;
+FROM &lt;left_table&gt;
+&lt;inner|left|right&gt; JOIN &lt;right_table&gt;
+ON &lt;join condition&gt; 
+WHERE &lt;where_condition&gt;</code></pre>
+  <p>
+   执行顺序如下(SQL语句里第一个被执行的总是FROM子句)：
+  </p>
+  <ul list="uf6567b66">
+   <li fid="u786a91a4">
+    FROM：对左右两张表执行
+    <strong>
+     笛卡尔积
+    </strong>
+    <span class="lake-fontsize-12">
+     ，产生第一张表vt1。行数为n*m（n为左表的行数，m为右表的行数）；
+    </span>
+   </li>
+   <li fid="u786a91a4">
+    ON：根据ON的条件逐行筛选vt1，将结果插入vt2中；
+   </li>
+   <li fid="u786a91a4">
+    JOIN：
+    <strong>
+     添加外部行
+    </strong>
+    <span class="lake-fontsize-12">
+     ，如果指定了LEFT JOIN(LEFT OUTER JOIN)，则先遍历一遍左表的每一行，其中不在vt2的行会被插入到vt2，该行的剩余字段将被填充为NULL，形成vt3；如果指定了RIGHT JOIN也是同理。但如果指定的是INNER JOIN，则不会添加外部行，上述插入过程被忽略，vt2=vt3（所以
+    </span>
+    <strong>
+     INNER JOIN的过滤条件放在ON或WHERE里 执行结果是没有区别的
+    </strong>
+    <span class="lake-fontsize-12">
+     ）；
+    </span>
+   </li>
+   <li fid="u786a91a4">
+    WHERE：对vt3进行条件过滤，满足条件的行被输出到vt4；
+   </li>
+   <li fid="u786a91a4">
+    SELECT：取出vt4的指定字段到vt5。
+   </li>
+  </ul>
+  <p>
+   join过程大体是
+   <strong>
+    笛卡尔积-&gt;on条件过滤-&gt;添加外部行-&gt;where条件-&gt;select
+   </strong>
+  </p>
+  <h3>
+   MySQL有哪些存储引擎？
+  </h3>
+  <p>
+   可回答：了解数据库的什么引擎
+  </p>
+  <p>
+   问过的一些公司：美团(2021.08)
+  </p>
+  <p>
+   参考答案：MyISAM、InnoDB、Memory、Archive
+  </p>
+  <p>
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662985802793-8436e40d-7ffd-4558-be76-81abbad2160f.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_34%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <h3>
+   数据库中存储引擎MyISAM与InnoDB的区别
+  </h3>
+  <p>
+   可回答：MySQL有什么存储引擎，有什么区别
+  </p>
+  <p>
+   问过的一些公司：字节，字节(2021.08)-(2021.09)，好未来，百度，美团点评，美团(2021.08)x4，美团买菜(2021.09)x2，Shopee(2021.07)，招银网络(2021.09)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   <strong>
+    区别：
+   </strong>
+  </p>
+  <p>
+   <strong>
+    1、InnoDB支持事务，MyISAM不支持，对于InnoDB每一条SQL语言都默认封装成事务，自动提交，这样会影响速度，所以最好把多条SQL语言放在begin和commit之间，组成一个事务；
+   </strong>
+  </p>
+  <p>
+   <strong>
+    2、InnoDB支持外键，而MyISAM不支持。对一个包含外键的InnoDB表转为MYISAM会失败；
+   </strong>
+  </p>
+  <p>
+   <strong>
+    3、InnoDB是聚集索引，使用B+Tree作为索引结构，数据文件是和（主键）索引绑在一起的（表数据文件本身就是按B+Tree组织的一个索引结构），必须要有主键，通过主键索引效率很高。但是辅助索引需要两次查询，先查询到主键，然后再通过主键查询到数据。因此，主键不应该过大，因为主键太大，其他索引也都会很大。
+   </strong>
+  </p>
+  <p>
+   MyISAM是非聚集索引，也是使用B+Tree作为索引结构，索引和数据文件是分离的，索引保存的是数据文件的指针。主键索引和辅助索引是独立的。
+  </p>
+  <p>
+   也就是说：InnoDB的B+树主键索引的叶子节点就是数据文件，辅助索引的叶子节点是主键的值；而MyISAM的B+树主键索引和辅助索引的叶子节点都是数据文件的地址指针。
+  </p>
+  <p>
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662988023035-7c147c7d-a1af-4062-a847-e6f91b430034.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_25%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662988030066-ad947387-3af9-4f85-b200-98af8d463432.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_28%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   <strong>
+    4、InnoDB不保存表的具体行数，执行select count(*) from table时需要全表扫描。而MyISAM用一个变量保存了整个表的行数，执行上述语句时只需要读出该变量即可，速度很快（注意不能加有任何WHERE条件）
+   </strong>
+   <span class="lake-fontsize-12">
+    ；
+   </span>
+  </p>
+  <p>
+   那么为什么InnoDB没有了这个变量呢？
+  </p>
+  <p>
+   因为InnoDB的事务特性，在同一时刻表中的行数对于不同的事务而言是不一样的，因此count统计会计算对于当前事务而言可以统计到的行数，而不是将总行数储存起来方便快速查询。InnoDB会尝试遍历一个尽可能小的索引除非优化器提示使用别的索引。如果二级索引不存在，InnoDB还会尝试去遍历其他聚簇索引。
+  </p>
+  <p>
+   如果索引并没有完全处于InnoDB维护的缓冲区（Buffer Pool）中，count操作会比较费时。可以建立一个记录总行数的表并让你的程序在INSERT/DELETE时更新对应的数据。和上面提到的问题一样，如果此时存在多个事务的话这种方案也不太好用。如果得到大致的行数值已经足够满足需求可以尝试SHOW TABLE STATUS。
+  </p>
+  <p>
+   <strong>
+    5、Innodb不支持全文索引，而MyISAM支持全文索引，在涉及全文索引领域的查询效率上MyISAM速度更快高；
+   </strong>
+  </p>
+  <p>
+   <strong>
+    注意：5.7以后的InnoDB支持全文索引了
+   </strong>
+  </p>
+  <p>
+   <strong>
+    6、MyISAM表格可以被压缩后进行查询操作
+   </strong>
+  </p>
+  <p>
+   <strong>
+    7、InnoDB支持表、行(默认)级锁，而MyISAM支持表级锁
+   </strong>
+  </p>
+  <p>
+   InnoDB的行锁是实现在索引上的，而不是锁在物理行记录上。潜台词是，如果访问没有命中索引，也无法使用行锁，将要退化为表锁。
+  </p>
+  <p>
+   <strong>
+    8、InnoDB表必须有唯一索引（如主键）（用户没有指定的话会自己找/生产一个隐藏列Row_id来充当默认主键），而Myisam可以没有
+   </strong>
+  </p>
+  <p>
+   <strong>
+    9、Innodb存储文件有frm、ibd，而Myisam是frm、MYD、MYI
+   </strong>
+  </p>
+  <ul list="u3e233166">
+   <li fid="ud4edc4d0">
+    Innodb：frm是表定义文件，ibd是数据文件
+   </li>
+   <li fid="ud4edc4d0">
+    Myisam：frm是表定义文件，myd是数据文件，myi是索引文件
+   </li>
+  </ul>
+  <p>
+   <strong>
+    如何选择：
+   </strong>
+  </p>
+  <ul list="u5b696d4e">
+   <li fid="ua60eebba">
+    是否要支持事务，如果要请选择innodb，如果不需要可以考虑MyISAM；
+   </li>
+   <li fid="ua60eebba">
+    如果表中绝大多数都只是读查询，可以考虑MyISAM，如果既有读也有写，请使用InnoDB。
+   </li>
+   <li fid="ua60eebba">
+    系统奔溃后，MyISAM恢复起来更困难，能否接受；
+   </li>
+   <li fid="ua60eebba">
+    MySQL5.5版本开始Innodb已经成为Mysql的默认引擎（之前是MyISAM），说明其优势是有目共睹的，如果你不知道用什么，那就用InnoDB，至少不会差。
+   </li>
+  </ul>
+  <h3>
+   MyIsam适用于什么场景？
+  </h3>
+  <p>
+   问过的一些公司：美团(2021.08)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   1）做很多count 的计算；
+  </p>
+  <p>
+   2）插入不频繁，查询非常频繁；
+  </p>
+  <p>
+   3）没有事务。
+  </p>
+  <h3>
+   InnoDB和MyIsam针对读写场景？
+  </h3>
+  <p>
+   问过的一些公司：美团(2021.08)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   如果表中绝大多数都只是读查询，可以考虑MyISAM，如果既有读也有写，请使用InnoDB。
+  </p>
+  <h3>
+   MySQL Innodb实现了哪个隔离级别?
+  </h3>
+  <p>
+   问过的一些公司：唯品会(2021.07)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   <strong>
+    在InnoDB存储引擎中，Repeatable Read 是默认的事务隔离级别。
+   </strong>
+  </p>
+  <p>
+   <strong>
+    同时该引擎的实现基于多版本的并发控制协议——MVCC (Multi-Version Concurrency Control)，解决了幻读问题，脏读和不可重复读也是不存在的
+   </strong>
+   <span class="lake-fontsize-12">
+    。MVCC最大的好处就在于读不加锁，读写不冲突，这样极大的增加了系统的并发性能。
+   </span>
+  </p>
+  <h3>
+   InnoDB数据引擎的特点
+  </h3>
+  <p>
+   问过的一些公司：字节(2021.08)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   1）
+   <strong>
+    支持事务
+   </strong>
+   <span class="lake-fontsize-12">
+    （事务是指逻辑上的一组操作，组成这组操作的各个单元，要么全成功，要么全失败）
+   </span>
+  </p>
+  <p>
+   2）
+   <strong>
+    行级锁定
+   </strong>
+   <span class="lake-fontsize-12">
+    （更新时一般是锁定当前行）：通过索引实现，全表扫描仍然会是锁定整个表，注意间隙锁的影响
+   </span>
+  </p>
+  <p>
+   3）
+   <strong>
+    读写阻塞与事务隔离级别相关
+   </strong>
+  </p>
+  <p>
+   4）
+   <strong>
+    具有非常高效的缓存特性
+   </strong>
+   <span class="lake-fontsize-12">
+    ，能缓存索引，也能缓存数据
+   </span>
+  </p>
+  <p>
+   5）整个
+   <strong>
+    表和主键以Cluster方式存储
+   </strong>
+   <span class="lake-fontsize-12">
+    ，组成一颗平衡树
+   </span>
+  </p>
+  <p>
+   6）所有
+   <strong>
+    Secondary Index都会保存主键信息
+   </strong>
+  </p>
+  <p>
+   7）
+   <strong>
+    支持分区，表空间
+   </strong>
+   <span class="lake-fontsize-12">
+    。类似于Oracle数据库
+   </span>
+  </p>
+  <p>
+   8）
+   <strong>
+    支持外键约束，不支持全文索引
+   </strong>
+   <span class="lake-fontsize-12">
+    ，5.5之前支持，后面不再支持
+   </span>
+  </p>
+  <p>
+   9）和MyISAM相比，
+   <strong>
+    InnoDB对于硬件资源要求比较高
+   </strong>
+  </p>
+  <h3>
+   InnoDB用什么索引
+  </h3>
+  <p>
+   问过的一些公司：字节(2021.08)，贝壳找房(2021.11)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   聚集索引，使用B+Tree作为索引结构。
+  </p>
+  <p>
+   InnoDB的主键索引与行记录是存储在一起的，故叫做聚集索引（Clustered Index）：没有单独区域存储行记录。
+  </p>
+  <p>
+   必须要有主键，通过主键索引效率很高。但是辅助索引需要两次查询，先查询到主键，然后再通过主键查询到数据。因此，主键不应该过大，因为主键太大，其他索引也都会很大。
+  </p>
+  <h3>
+   Hash索引缺点
+  </h3>
+  <p>
+   问过的一些公司：字节(2021.08)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   <strong>
+    缺点：
+   </strong>
+  </p>
+  <p>
+   <strong>
+    1）不能避免读取行
+   </strong>
+  </p>
+  <p>
+   哈希索引只包含哈希值和行指针，而不存储字段值，所以不能使用索引中的值来避免读取行。不过，访问内存中的行的速度很快，所以大部分情况下这一点对性能的影响并不明显。
+  </p>
+  <p>
+   <strong>
+    2）无法用于排序
+   </strong>
+  </p>
+  <p>
+   哈希索引数据并不是按照索引值顺序存储的，所以也就无法用于排序。
+  </p>
+  <p>
+   <strong>
+    3）无法使用部分索引列匹配查找
+   </strong>
+  </p>
+  <p>
+   哈希索引也不支持部分索引列匹配查找，因为哈希索引始终是使用索引列的全部内容来计算哈希值的。例如，在数据列（A,B）上建立哈希索引，如果查询只有数据列A，则无法使用该索引。
+  </p>
+  <p>
+   <strong>
+    4）只支持等值查找
+   </strong>
+  </p>
+  <p>
+   哈希索引只支持等值比较查询，包括=、IN()、&lt;=&gt;（注意&lt;&gt;和&lt;=&gt;是不同的操作）。也不支持任何范围查询，例如WHERE price&gt;100。
+  </p>
+  <p>
+   <strong>
+    5）存在Hash冲突
+   </strong>
+  </p>
+  <p>
+   访问哈希索引的数据非常快，除非有很多哈希冲突（不同的索引列值却有相同的哈希值）。当出现哈希冲突的时候，存储引擎必须遍历链表中所有的行指针，逐行进行比较，直到找到所有符合条件的行。
+  </p>
+  <p>
+   同时，当哈希冲突很多的时候，一些索引维护操作的代价也会很高。例如，如果在某个选择性很低（哈希冲突很多）的列上建立哈希索引，那么当从表中删除一行时，存储引擎需要遍历对应哈希值的链表中的每一行，找到并删除对应行的引用，冲突越多，代价越大。
+  </p>
+  <p>
+   <strong>
+    优点：
+   </strong>
+  </p>
+  <p>
+   因为索引自身只需存储对应的哈希值，所以索引的结构十分紧凑，这也让
+   <strong>
+    哈希索引查找的速度非常快
+   </strong>
+  </p>
+  <h3>
+   数据库索引的类型，各有什么优缺点？
+  </h3>
+  <p>
+   问过的一些公司：字节x2，百度，阿里，美团点评，陌陌，妙盈科技，美团x6，美团(2021.09)，猿辅导，顺丰，有赞x2，蔚来(2021.07)，Shopee(2021.07)，兴业数金(2021.09)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   索引的几种类型分别是
+   <strong>
+    普通索引、唯一索引、聚集索引、主键索引、全文索引
+   </strong>
+   <span class="lake-fontsize-12">
+    几种。
+   </span>
+  </p>
+  <p>
+   使用索引的优点：
+  </p>
+  <ul list="u2543442c">
+   <li fid="u455b71fb">
+    提高数据的搜索速度
+   </li>
+   <li fid="u455b71fb">
+    加快表与表之间的连接速度
+   </li>
+   <li fid="u455b71fb">
+    在信息检索过程中，若使用分组及排序子句进行时，通过建立索引能有效的减少检索过程中所需的分组及排序时间，提高检索效率。
+   </li>
+  </ul>
+  <p>
+   使用索引的缺点:
+  </p>
+  <ul list="u8267da0e">
+   <li fid="ua441895b">
+    在我们建立数据库的时候，需要花费的时间去建立和维护索引，而且随着数据量的增加，需要维护它的时间也会增加。
+   </li>
+   <li fid="ua441895b">
+    在创建索引的时候会占用存储空间。
+   </li>
+   <li fid="ua441895b">
+    在我们需要修改表中的数据时，索引还需要进行动态的维护，所以对数据库的维护带来了一定的麻烦。
+   </li>
+  </ul>
+  <p>
+   唯一索引：数据列不允许重复，允许为NULL值，一个表允许多个列创建唯一索引。
+  </p>
+  <p>
+   主键索引：数据列不允许重复，不允许为NULL值，一个表只能有一个主键。
+  </p>
+  <p>
+   聚集索引：我们在表中添加数据的顺序，与我们创建的索引键值相同，而且一个表中只能有一个聚集索引。
+  </p>
+  <p>
+   普通索引：基本的索引类型，没有唯一性的限制，允许为NULL值。它的结构主要以B+树和哈希索引为主，主要是对数据表中的数据进行精确查找。
+  </p>
+  <p>
+   全文索引：是目搜索引擎使用的一种关键技术，它的作用是搜索数据表中的字段是不是包含我们搜索的关键字，就像搜索引擎中的模糊查询。
+  </p>
+  <h3>
+   MySQL的索引有哪些？索引如何优化？
+  </h3>
+  <p>
+   可回答：1）MySQL索引建过吗？用过哪些索引？什么类型的？2）索引用法，优化方法？3）索引的作用，索引的实现？4）MySQL的索引有哪些？谈谈索引？为什么不用哈希表？5）数据库索引有什么作用？
+  </p>
+  <p>
+   问过的一些公司：头条，百度，美团点评，360，小米，vivo，拼多多，顺丰，阿里，映客直播，蚂蚁金服，字节(2021.07)-(2021.08)，阿里蚂蚁(2021.08)，友塔游戏(2021.08)，蔚来(2021.09)x2，兴业数金(2021.08)，网易有道(2021.09)，网易(2021.09)，欢聚(2021.09)，茄子科技(2021.09)，Shopee(2021.07)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   <strong>
+    1、索引是什么
+   </strong>
+  </p>
+  <p>
+   索引，在MySQL中也叫“键（key）”，是存储引擎用于快速找到记录的一种数据结构。如果把数据库的一张表比作一本书，那索引则是这本书的目录，通过目录，我们能快速找到我们想要的主题所对应的页码。
+   <strong>
+    索引的作用即类似于书的目录，帮助我们快速定位到相关数据行的位置
+   </strong>
+   <span class="lake-fontsize-12">
+    。
+   </span>
+  </p>
+  <p>
+   好的索引能使查询的性能提高几个数量级，而差的索引在大数据量的表中甚至会使性能急剧下降。“最优”的索引有时比一个“好的”索引性能要好两个数量级。
+  </p>
+  <p>
+   <strong>
+    2、MySQL的索引
+   </strong>
+  </p>
+  <p>
+   索引有很多种类型，可以为不同的场景提供更好的性能。在MySQL中，索引是在存储引擎层而非服务器层实现的，而不同的存储引擎的索引的工作方式并不一样，且不是所有的存储引擎都支持所有类型的索引。同时，值得一提的是，不同的存储引擎对同一类型的索引，其底层的实现一般是不同的。
+  </p>
+  <p>
+   <strong>
+    MySQL支持以下几种类型的索引：
+   </strong>
+  </p>
+  <ul list="uaf312ec6">
+   <li fid="uab734478">
+    B-Tree索引
+   </li>
+   <li fid="uab734478">
+    哈希索引
+   </li>
+   <li fid="uab734478">
+    空间数据索引（R-Tree）
+   </li>
+   <li fid="uab734478">
+    全文索引
+   </li>
+   <li fid="uab734478">
+    其他索引类别
+   </li>
+  </ul>
+  <p>
+   <strong>
+    3、B-Tree索引
+   </strong>
+  </p>
+  <p>
+   B-Tree索引是最常见的索引类型，它使用B-Tree数据结构来存储数据，大多数MySQL引擎都支持这种索引。（Archive引擎是一个例外：5.1之前Archive不支持任何索引，直到5.1才开始支持单个自增列AUTO_INCREMENT的索引。）
+  </p>
+  <p>
+   在MySQL中，“B-Tree”只是一个术语的统称，因为不同的存储引擎可能使用的是其他存储结构来实现这种索引，但仅仅只是命名为“B-Tree”。例如，
+   <strong>
+    NDB集群存储引擎
+   </strong>
+   <span class="lake-fontsize-12">
+    内部实际上使用了
+   </span>
+   <strong>
+    T-Tree结构
+   </strong>
+   <span class="lake-fontsize-12">
+    存储这种索引；
+   </span>
+   <strong>
+    InnoDB
+   </strong>
+   <span class="lake-fontsize-12">
+    则使用的是
+   </span>
+   <strong>
+    B+Tree结构
+   </strong>
+   <span class="lake-fontsize-12">
+    存储这种索引。只是它们都将其命名为“B-Tree”。
+   </span>
+  </p>
+  <p>
+   1）B-Tree索引在不同引擎中的差异
+  </p>
+  <p>
+   不同的存储引擎使用B-Tree索引的方式也不同，性能也各有不同，各有优劣。下面拿MyISAM 和InnoDB进行对比。
+  </p>
+  <table class="lake-table" margin="True" style="width: 750px">
+   <colgroup>
+    <col width="250"/>
+    <col width="250"/>
+    <col width="250"/>
+   </colgroup>
+   <tbody>
+    <tr>
+     <td>
+      <p>
+       ​
+       <br/>
+      </p>
+     </td>
+     <td>
+      <p>
+       InnoDB
+      </p>
+     </td>
+     <td>
+      <p>
+       MyISAM
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p>
+       存储方式
+      </p>
+     </td>
+     <td>
+      <p>
+       前缀压缩技术
+      </p>
+     </td>
+     <td>
+      <p>
+       按照原数据格式
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p>
+       引用方式
+      </p>
+     </td>
+     <td>
+      <p>
+       通过数据的物理位置引用被索引的行
+      </p>
+     </td>
+     <td>
+      <p>
+       根据主键引用被索引的行
+      </p>
+     </td>
+    </tr>
+   </tbody>
+  </table>
+  <p>
+   2）InnoDB的B-Tree技术实现是B+Tree
+  </p>
+  <p>
+   InnoDB的B-Tree索引从技术上来说实际上是B+Tree实现的，这种实现使得所有的值都是按照顺序存储的（所以很适合查找范围数据），并且每一个叶子页到根的距离相同。MyISAM使用的结构有所不同，但基本思想类似。
+  </p>
+  <p>
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662988384352-cb1cdb74-bef1-486e-a8d6-735c9b43c5dd.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_31%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   B-Tree索引能够加快访问数据的速度，靠的就是上面这种数据结构。它使得存储引擎不再需要进行全表扫描来获取所需数据，取而代之的是从索引的根节点开始搜索。
+  </p>
+  <p>
+   根节点中存放了指向子节点的指针，存储引擎根据这些指针向下层查找。通过比较节点页的值和要查找的值可以找到合适的指针进入下层子节点，这些指针实际上定义了子节点页中值的上限和下限。最终存储引擎要么能找到对应的值，要么该记录不存在。叶子节点页有相应的指针，但叶子节点的指针不是指向其他的节点页，而是指向被索引的数据（不同引擎的“指针”类型不同）。
+  </p>
+  <p>
+   <strong>
+    树的深度和表的大小直接相关，表的数据量越大，树的层数越多。
+   </strong>
+  </p>
+  <p>
+   3）创建一个多列索引
+  </p>
+  <pre><code class="language-plain" lang="plain">CREATE TABLE People (
+      last_name    varchar(50)        not None,
+      first_name   varchar(50)        not None,
+      dob          date             not None,
+      gender       enum(‘m’,‘f’)    not None,
+      key(last_name,first_name,dob)
+);</code></pre>
+  <p>
+   4）B-Tree索引支持的查询类型
+  </p>
+  <p>
+   MySQL的B-Tree索引适用于全键值、键值范围或键前缀查找，其中键前缀查找只适用于根据最左前缀的查找。前面所述的索引可细分为如下几种类型。
+  </p>
+  <p>
+   （1）全值匹配
+  </p>
+  <p>
+   全值匹配指的是和索引中的所有列进行匹配。
+  </p>
+  <p>
+   例如上面的People表的索引（last_name,first_name,dob）可以用于查找last_name=’Zeng’,first_name=’Chuang’,dob=’1996-01-01’的人。这就是使用了索引中的所有列进行匹配，即全值匹配。
+  </p>
+  <p>
+   （2）匹配最左前缀
+  </p>
+  <p>
+   可以只使用索引的第一个列进行匹配。
+  </p>
+  <p>
+   例如可以用于查找last_name=’Zeng’的人，即用于查找姓为Zeng的人，这里只使用了索引的最左列进行匹配，即匹配最左前缀。
+  </p>
+  <p>
+   （3）匹配列前缀
+  </p>
+  <p>
+   可以只匹配某一列的值的开头部分。
+  </p>
+  <p>
+   例如可以用于查找last_name LIKE ‘Z%’的人，即用于查找所有以Z开头的姓的人，这里只使用了索引最左列的前缀进行匹配，即匹配列前缀。
+  </p>
+  <p>
+   （4）匹配范围值
+  </p>
+  <p>
+   可以只适用索引的第一列查找符合某个范围内的数据。
+  </p>
+  <p>
+   例如可以用于查找last_name BETWEEN ‘Qiu’ AND ‘Zeng’的人，即用于查找姓在Qiu和Zeng之间的人，这里只使用了索引最左列的前缀进行范围匹配，即匹配范围值。
+  </p>
+  <p>
+   （5）精确匹配某一列并范围匹配另外一列
+  </p>
+  <p>
+   可以使第一列全匹配，第二列范围匹配。
+  </p>
+  <p>
+   例如可以用于查找last_name=’Zeng’ AND first_name LIKE ’C%’的人，即用于查找姓是Zeng，名字以C开头的人，这里使用了索引的最左列精确匹配，第二列进行范围匹配，即精确匹配某一列并范围匹配另外一列。
+  </p>
+  <p>
+   （6）只访问索引的查询
+  </p>
+  <p>
+   查询只需访问索引，而无须访问数据行。
+  </p>
+  <p>
+   例如select last_name, first_name where last_name=’Zeng’; 这里只查询索引所包含的last_name和first_name列，则无须读取数据行。
+  </p>
+  <p>
+   5）B-Tree索引的限制
+  </p>
+  <p>
+   （1）只能按照索引的最左列开始查找。
+  </p>
+  <p>
+   例如People表中的索引无法用于查找first_name为’Chuang’的人，也无法查找某个特定生日的人，因为这两个列都不是最左数据列。
+  </p>
+  <p>
+   （2）只能按照索引最左列的最左前缀进行匹配。
+  </p>
+  <p>
+   例如People表中的索引无法查找last_name LIKE ‘%eng’的人，虽然last_name就是此索引的最左列，但MySQL索引无法查找以‘eng’结尾的last_name的记录。
+  </p>
+  <p>
+   （3）只能按照索引定义的顺序从左到右进行匹配，不能跳过索引中的列。
+  </p>
+  <p>
+   例如People表中的索引无法用于查找last_name=’Zeng’ AND bod=’1996-01-01’的人，因为MySQL无法跳过索引中的某一列而使用索引中最左列和排在末尾的列进行组合。如果不指定索引中中间的列，则MySQL只能使用索引的最左列，即第一列。
+  </p>
+  <p>
+   （4）如果查询中有某个列的范围查询，则其右边所有列都无法使用索引优化查找。
+  </p>
+  <p>
+   例如有这样一个查询：where last_name=’Zeng’ AND first_name LIKE ’C%’ AND dob=’1996-01-01’; 这个查询只能使用索引的前两列，因为这里LIKE是一个范围条件，则first_name后面的索引列都将失效。（优化点：尽量不要在索引列中使用LIKE等范围条件，改用多个等于条件来替代，保证后面的索引列能生效。）
+  </p>
+  <p>
+   <strong>
+    4、哈希索引
+   </strong>
+  </p>
+  <p>
+   1）哈希索引是什么
+  </p>
+  <p>
+   哈希索引（hash index）基于哈希表实现，只有精确匹配索引所有列的查询才有效。
+  </p>
+  <p>
+   对于每一行数据，存储引擎都会对所有的索引列计算一个哈希码（hash code），不同键值的行计算出来的哈希码也不一样。哈希索引将所有的哈希码存储在索引中，并在哈希表中保存指向每个数据行的指针。
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662988447178-5755e541-6287-41b5-8fcf-6466fe16f6c8.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_22%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   2）不同存储引擎对哈希索引的支持
+  </p>
+  <table class="lake-table" margin="True" style="width: 748px">
+   <colgroup>
+    <col width="187"/>
+    <col width="187"/>
+    <col width="187"/>
+    <col width="187"/>
+   </colgroup>
+   <tbody>
+    <tr>
+     <td>
+      <p>
+       ​
+       <br/>
+      </p>
+     </td>
+     <td>
+      <p>
+       Memory引擎
+      </p>
+     </td>
+     <td>
+      <p>
+       NDB集群引擎
+      </p>
+     </td>
+     <td>
+      <p>
+       InnoDB引擎
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p>
+       是否支持哈希索引
+      </p>
+     </td>
+     <td>
+      <p>
+       显示支持，是Memory引擎表的默认索引类型（也支持B-Tree索引）
+      </p>
+     </td>
+     <td>
+      <p>
+       支持唯一哈希索引，所起作用特殊
+      </p>
+     </td>
+     <td>
+      <p>
+       自适应哈希索引（adaptive hash index）
+      </p>
+     </td>
+    </tr>
+   </tbody>
+  </table>
+  <p>
+   （1）  Memory引擎的哈希索引
+  </p>
+  <p>
+   Memory引擎不仅支持唯一哈希索引，还支持非唯一哈希索引。非唯一哈希索引指的是：如果多个列的哈希值相同，索引会以链表的方式存放多个指向不同记录的指针到同一个哈希条目中。
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662988463942-b59a12b9-88d4-40ae-976c-7aa32a89a269.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_13%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   使用Memory引擎在建表时创建哈希索引
+  </p>
+  <pre><code class="language-sql" lang="sql">CREATE TABLE testhash (
+  fname VARCHAR(50) NOT NULL,
+  Lname VARCHAR(50) NOT NULL,
+  KEY USING HASH(fname)
+)ENGINE=MEMORY;</code></pre>
+  <p>
+   （2）NDB集群引擎的哈希索引
+  </p>
+  <p>
+   （3）InnoDB引擎的哈希索引
+  </p>
+  <p>
+   InnoDB引擎有一个特殊的功能叫“自适应哈希索引（adaptive hash index）”：当InnoDB注意到某些索引值被使用得非常频繁时，它会在内存中基于B-Tree索引之上再创建一个哈希索引，让B-Tree索引也具有哈希索引的一些优点，如快速的哈希查找。
+  </p>
+  <p>
+   “自适应哈希索引”是一个完全自动的、内部的行为，用户无法控制或配置，不过如果有必要，完全可以关闭该功能。
+  </p>
+  <p>
+   3）哈希索引的优势、限制及适用场景
+  </p>
+  <p>
+   （1）优势：哈希索引查找的速度非常快。
+  </p>
+  <p>
+   原因：索引自身只需存储对应的哈希值，使得索引的结构十分紧凑。
+  </p>
+  <p>
+   （2）哈希索引的限制
+  </p>
+  <ul list="u8c53332c">
+   <li fid="u59c57845">
+    不能使用索引中的值来避免读取行。因为哈希索引只包含哈希值和行指针，而不存储字段值。
+   </li>
+   <li fid="u59c57845">
+    不能用于排序。因为哈希索引数据不是按照索引值顺序存储的。
+   </li>
+   <li fid="u59c57845">
+    不支持部分索引列匹配查找。因为哈希索引必须使用索引列的全部内容来计算哈希值。
+   </li>
+   <li fid="u59c57845">
+    只支持等值比较查询（包括=、IN()、&lt; = &gt;），不支持任何范围查询（如where price &gt; 100)。
+   </li>
+   <li fid="u59c57845">
+    当出现哈希冲突时（不同的索引列值却有相同的哈希值），访问速度会变慢。因为存储引擎必须遍历链表中所有的行指针，逐行进行比较，知道找到所有符合条件的行。
+   </li>
+   <li fid="u59c57845">
+    若哈希冲突很多，一些索引维护操作的代价也会很高。如：在某个哈希冲突很多的列上建立哈希索引，当从表中删除一行时，存储引擎需要遍历对应哈希值的链表中的每一行，找到并删除对应行的引用。
+    <em>
+     冲突越多，代价越大。
+    </em>
+    <span class="lake-fontsize-12">
+    </span>
+   </li>
+  </ul>
+  <p>
+   （3）哈希索引的适用场景
+  </p>
+  <p>
+   因为上面的这些限制，使得哈希索引适用的场景比较有限。而一旦适用哈希索引，则它带来的性能提升将非常显著。如，在数据仓库应用中有一种经典的“星型”schema，需要许多关联才能建立查找表，哈希索引就非常适合查找表的需求。
+  </p>
+  <p>
+   4）创建自定义哈希索引
+  </p>
+  <p>
+   （1）思路
+  </p>
+  <p>
+   在B-Tree基础上创建一个伪哈希索引。这和真正的哈希索引不是一回事，因为还是使用B-Tree进行查找，但是它使用哈希值而不是键本身进行索引查找。只需要在查询的WHERE字句中手动指定使用哈希函数。
+  </p>
+  <p>
+   （2）哈希索引查找实例
+  </p>
+  <p>
+   一张表中存储了大量的URL，并需要根据URL进行搜索查找。如果使用B-Tree来存储URL，存储的内容会很大。正常情况下会有如下查询：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT id FROM url WHERE url=”http://www.mysql.com”;</code></pre>
+  <p>
+   若删除原来URL列上的索引，而新增一个被索引的url_crc列，使用CRC32做哈希，就可以使用下面的方式查询：
+  </p>
+  <pre><code class="language-plain" lang="plain">SELECT id FROM url WHERE url=”http://www.mysql.com” AND url_crc=CRC32(“http://www.mysql.com”);</code></pre>
+  <p>
+   这样做性能会非常高，因为MySQL优化器会使用这个选择性很高而体积很小的基于url_crc列的索引来完成查找。及时有多个记录相同的索引值，查找仍然很快，因为MySQL优化器会先筛选出匹配的索引行记录，然后根据具体的url值进行比对，返回完全符合条件的行。
+  </p>
+  <p>
+   （3）使用触发器维护哈希值
+  </p>
+  <p>
+   新增一列url_crc列之后需要维护这个哈希值。可以手动维护，也可以使用触发器实现。
+  </p>
+  <p>
+   首先创建如下表：
+  </p>
+  <pre><code class="language-sql" lang="sql">CREATE TABLE pseudohash (
+  id  int  unsigned  NOT  NULL  auto_increment,
+  url  varchar(255)  NOT NULL,
+  url_crc  int unsigned  NOT NULL DEFAULT 0,
+  PRIMARY KEY(id)
+);</code></pre>
+  <p>
+   然后创建触发器：
+  </p>
+  <pre><code class="language-sql" lang="sql">DELIMITER //
+CREATE TRIGGER pseudohash_crc_ins BEFORE INSERT ON pseudohash FOR EACH ROW BEGIN
+SET NEW.url_crc=crc32(NEW.url);
+END;
+//
+CREATE TRIGGER pseudohash_crc_upd BEFORE UPDATE ON pseudohash FOR EACH ROW BEGIN
+SET NEW.url_crc=crc32(NEW.url);
+END;
+//
+DELIMITER ;</code></pre>
+  <p>
+   最后验证触发器如何维护哈希索引：
+  </p>
+  <pre><code class="language-sql" lang="sql">INSERT INTO pseudohash(url) VALUES(‘http://www.mysql.com’);
+SELECT * FROM pseudohash;
+
+UPDATE pseudohash SET url=‘http://www.mysql.com’ WHERE id=1;
+SELECT * FROM pseudohash;</code></pre>
+  <p>
+   （4）规避使用SHA1()和MD5()
+  </p>
+  <p>
+   SHA1()和MD5()计算出来的哈希值是非常长的字符串，会浪费大量空间，比较时也会更慢。SAH1()和MD5()是强加密函数，设计目标是最大限度消除冲突，但这里并不需要这样高的要求。
+  </p>
+  <p>
+   简单哈希函数的冲突在一个可以接受的范围，同时又能够提供更好的性能。
+  </p>
+  <p>
+   （5）处理哈希冲突
+  </p>
+  <p>
+   1.定义哈希函数
+  </p>
+  <p>
+   如果表的数据量非常大，CRC32()会出现大量的哈希冲突，则可以考虑自己实现一个简单的64位哈希函数。这个自定义函数要返回整数，而不是字符串。一个简单的办法可以使用MD5()返回值的一部分来作为自定义哈希函数。这可能比自己写一个哈希算法的性能要查，但这样实现最简单：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT CONV(RIGHT(MD5(‘http://www.mysql.com’),16),16,10) AS HASH64;</code></pre>
+  <p>
+   注：CONV(N,from_base,to_base)
+  </p>
+  <p>
+   N是要转换的数据，from_base是原进制，to_base是目标进制。
+  </p>
+  <p>
+   2.WHERE字句中包含常量值
+  </p>
+  <p>
+   当使用哈希索引进行查询的时候，必须在WHERE字句中包含常量值：
+  </p>
+  <pre><code class="language-plain" lang="plain">SELECT id FROM url WHERE url=“http://www.mysql.com” AND url_crc=CRC32(“http://www.mysql.com”);</code></pre>
+  <p>
+   因为所谓的“生日悖论”，出现哈希冲突的概率的增长速度可能比想象的要快得多。CRC32()返回的是32位的整数，当索引有93000条记录时出现冲突的概率是1%。
+  </p>
+  <p>
+   如果不想查询具体值，例如只是统计记录数（不精确的），则可以不带入列值，直接使用CRC32()的哈希值查询即可。
+  </p>
+  <p>
+   还可以使用如FNV64()函数作为哈希函数，这是移植自Percona Server的函数，可以以插件的方式在任何MySQL版本中使用，哈希值为64位，速度快，且冲突比CRC32()要少很多。
+  </p>
+  <p>
+   <strong>
+    5、空间数据索引（R-Tree）
+   </strong>
+  </p>
+  <p>
+   MyISAM表支持空间索引，可以用作地理数据存储。和B-Tree索引不同，这类索引无须前缀索引。空间索引会从所有维度来索引数据。查询时，可以有效地使用任意维度来组合查询。必须使用MySQL的GIS相关函数如MBRCONTAINS()等来维护数据。MySQL的GIS支持并不完善，所以大部分人都不会使用这个特性。
+  </p>
+  <p>
+   开源关系数据库系统中对GIS的解决方案做得比较好的是PostgreSQL和PostGIS。
+  </p>
+  <p>
+   <strong>
+    6、全文索引
+   </strong>
+  </p>
+  <p>
+   全文索引是一种特殊类型的索引，它查找的是文本中的关键词，而不是直接比较索引中的值。全文搜索和其他几类索引的匹配方式完全不一样。它有许多需要注意的细节，如停用词、词干和复数、布尔搜索等。全文索引更类似于搜索引擎做的事情，而不是简单的WHERE条件匹配。
+  </p>
+  <p>
+   <strong>
+    7、其他索引类型
+   </strong>
+  </p>
+  <p>
+   TokuDB使用形树索引（fractal tree index），这是一类较新开发的数据结构，既有B-Tree的很多优点，也避免了B-Tree的一些缺点。
+  </p>
+  <p>
+   还有InnoDB的聚簇索引、覆盖索引等。
+  </p>
+  <p>
+   ScaleDB使用Patricia tries。
+  </p>
+  <p>
+   其他存储引擎技术如InfiniDB和Infobright则使用了一些特殊的数据结构来优化某些特殊的查询。
+  </p>
+  <p>
+   <strong>
+    8、MySQL索引实现
+   </strong>
+  </p>
+  <p>
+   在MySQL中，索引属于存储引擎级别的概念，不同存储引擎对索引的实现方式是不同的，接下来主要说下MyISAM和InnoDB两个存储引擎的索引实现方式。
+  </p>
+  <p>
+   1）MyISAM索引实现
+  </p>
+  <p>
+   MyISAM引擎使用B+Tree作为索引结构，叶节点的data域存放的是数据记录的地址。下图是MyISAM索引的原理图：
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662988582478-c9570ed5-73f8-4b77-97d2-ac799ef504a3.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_19%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   这里设表一共有三列，假设我们以Col1为主键，则上图是一个MyISAM表的主索引（Primary key）示意。可以看出MyISAM的索引文件仅仅保存数据记录的地址。在MyISAM中，主索引和辅助索引（Secondary key）在结构上没有任何区别，只是主索引要求key是唯一的，而辅助索引的key可以重复。如果我们在Col2上建立一个辅助索引，则此索引的结构如下图所示：
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662988594572-3a08e845-81e4-4a46-a6a0-31ceab175986.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_19%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   同样也是一颗B+Tree，data域保存数据记录的地址。因此，MyISAM中索引检索的算法为首先按照B+Tree搜索算法搜索索引，如果指定的Key存在，则取出其data域的值，然后以data域的值为地址，读取相应数据记录。
+  </p>
+  <p>
+   MyISAM的索引方式也叫做“非聚集”的，之所以这么称呼是为了与InnoDB的聚集索引区分。
+  </p>
+  <p>
+   2）InnoDB索引实现
+  </p>
+  <p>
+   虽然InnoDB也使用B+Tree作为索引结构，但具体实现方式却与MyISAM截然不同。
+  </p>
+  <p>
+   第一个重大区别是InnoDB的数据文件本身就是索引文件。从上文知道，MyISAM索引文件和数据文件是分离的，索引文件仅保存数据记录的地址。而在InnoDB中，表数据文件本身就是按B+Tree组织的一个索引结构，这棵树的叶节点data域保存了完整的数据记录。这个索引的key是数据表的主键，因此InnoDB表数据文件本身就是主索引。
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662988623834-1e86f67d-598f-467c-a6be-a87785a8a0a1.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_16%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   上图是InnoDB主索引（同时也是数据文件）的示意图，可以看到叶节点包含了完整的数据记录。这种索引叫做聚集索引。因为InnoDB的数据文件本身要按主键聚集，所以InnoDB要求表必须有主键（MyISAM可以没有），如果没有显式指定，则MySQL系统会自动选择一个可以唯一标识数据记录的列作为主键，如果不存在这种列，则MySQL自动为InnoDB表生成一个隐含字段作为主键，这个字段长度为6个字节，类型为长整形。
+  </p>
+  <p>
+   第二个与MyISAM索引的不同是InnoDB的辅助索引data域存储相应记录主键的值而不是地址。换句话说，InnoDB的所有辅助索引都引用主键作为data域。例如，下图为定义在Col3上的一个辅助索引：
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662988637294-ea585f69-dc2f-4d2b-a70e-f7df03baaec3.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_16%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   这里以英文字符的ASCII码作为比较准则。聚集索引这种实现方式使得按主键的搜索十分高效，但是辅助索引搜索需要检索两遍索引：首先检索辅助索引获得主键，然后用主键到主索引中检索获得记录。
+  </p>
+  <p>
+   了解不同存储引擎的索引实现方式对于正确使用和优化索引都非常有帮助，例如知道了InnoDB的索引实现后，就很容易明白为什么不建议使用过长的字段作为主键，因为所有辅助索引都引用主索引，过长的主索引会令辅助索引变得过大。再例如，用非单调的字段作为主键在InnoDB中不是个好主意，因为InnoDB数据文件本身是一颗B+Tree，非单调的主键会造成在插入新记录时数据文件为了维持B+Tree的特性而频繁的分裂调整，十分低效，而使用自增字段作为主键则是一个很好的选择。
+  </p>
+  <p>
+   <strong>
+    9、索引优化
+   </strong>
+  </p>
+  <ul list="ue9045563">
+   <li fid="u1f6c4eee">
+    最左前缀匹配原则
+   </li>
+   <li fid="u1f6c4eee">
+    主键外检一定要建索引
+   </li>
+   <li fid="u1f6c4eee">
+    对 where,on,group by,order by 中出现的列使用索引
+   </li>
+   <li fid="u1f6c4eee">
+    尽量选择区分度高的列作为索引,区分度的公式是count(distinct col)/count(*)，表示字段不重复的比例，比例越大我们扫描的记录数越少，唯一键的区分度是1，而一些状态、性别字段可能在大数据面前区分度就是0
+   </li>
+   <li fid="u1f6c4eee">
+    对较小的数据列使用索引,这样会使索引文件更小,同时内存中也可以装载更多的索引键
+   </li>
+   <li fid="u1f6c4eee">
+    索引列不能参与计算，保持列“干净”，比如from_unixtime(create_time) = ’2014-05-29’就不能使用到索引，原因很简单，b+树中存的都是数据表中的字段值，但进行检索时，需要把所有元素都应用函数才能比较，显然成本太大。所以语句应该写成create_time = unix_timestamp(’2014-05-29’);
+   </li>
+   <li fid="u1f6c4eee">
+    为较长的字符串使用前缀索引
+   </li>
+   <li fid="u1f6c4eee">
+    尽量的扩展索引，不要新建索引。比如表中已经有a的索引，现在要加(a,b)的索引，那么只需要修改原来的索引即可
+   </li>
+   <li fid="u1f6c4eee">
+    不要过多创建索引, 权衡索引个数与DML之间关系，DML也就是插入、删除数据操作。这里需要权衡一个问题，建立索引的目的是为了提高查询效率的，但建立的索引过多，会影响插入、删除数据的速度，因为我们修改的表数据，索引也需要进行调整重建
+   </li>
+   <li fid="u1f6c4eee">
+    对于like查询，”%”不要放在前面。
+    <br/>
+    <code>
+     SELECT * FROM
+    </code>
+    <span class="lake-fontsize-12">
+     houdunwang
+    </span>
+    <code>
+     WHERE
+    </code>
+    <span class="lake-fontsize-12">
+     uname
+    </span>
+    <code>
+     LIKE'后盾%' -- 走索引
+    </code>
+    <span class="lake-fontsize-12">
+     <br/>
+    </span>
+    <code>
+     SELECT * FROM
+    </code>
+    <span class="lake-fontsize-12">
+     houdunwang
+    </span>
+    <code>
+     WHERE
+    </code>
+    <span class="lake-fontsize-12">
+     uname
+    </span>
+    <code>
+     LIKE "%后盾%" -- 不走索引
+    </code>
+   </li>
+   <li fid="u1f6c4eee">
+    查询where条件数据类型不匹配也无法使用索引
+    <br/>
+    <span class="lake-fontsize-12">
+     字符串与数字比较不使用索引;
+     <br/>
+    </span>
+    <code>
+     CREATE TABLE
+    </code>
+    <span class="lake-fontsize-12">
+     a
+    </span>
+    <code>
+     (
+    </code>
+    <span class="lake-fontsize-12">
+     a
+    </span>
+    <code>
+     char(10));
+    </code>
+    <span class="lake-fontsize-12">
+     <br/>
+    </span>
+    <code>
+     EXPLAIN SELECT * FROM
+    </code>
+    <span class="lake-fontsize-12">
+     a
+    </span>
+    <code>
+     WHERE
+    </code>
+    <span class="lake-fontsize-12">
+     a
+    </span>
+    <code>
+     ="1"
+    </code>
+    <span class="lake-fontsize-12">
+     – 走索引
+     <br/>
+    </span>
+    <span class="lake-fontsize-12">
+     EXPLAIN SELECT * FROM
+    </span>
+    <code>
+     a
+    </code>
+    <span class="lake-fontsize-12">
+     WHERE
+    </span>
+    <code>
+     a
+    </code>
+    <span class="lake-fontsize-12">
+     =1 – 不走索引
+     <br/>
+    </span>
+    <span class="lake-fontsize-12">
+     正则表达式不使用索引,这应该很好理解,所以为什么在SQL中很难看到regexp关键字的原因
+    </span>
+   </li>
+  </ul>
+  <h3>
+   有哪些数据结构可以作为索引呢？
+  </h3>
+  <p>
+   可回答：MySQL索引的数据结构
+  </p>
+  <p>
+   问过的一些公司：美团(2021.08)，友塔游戏(2021.08)，京东(2021.09)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   索引的数据结构主要有
+   <strong>
+    B+树
+   </strong>
+   <span class="lake-fontsize-12">
+    和
+   </span>
+   <strong>
+    哈希表
+   </strong>
+   <span class="lake-fontsize-12">
+    。
+   </span>
+  </p>
+  <h3>
+   B树与B+树的区别？
+  </h3>
+  <p>
+   问过的一些公司：Shopee(2021.07)，字节(2021.08)，蔚来(2021.09)，美团(2021.09)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   B树非叶子结点和叶子结点都存储数据，因此查询数据时，时间复杂度最好为 O(1)，最坏为 O(log n)。而B+树只在叶子结点存储数据，非叶子结点存储关键字，且不同非叶子结点的关键字可能重复，因此查询数据时，时间复杂度固定为O(log n)。
+  </p>
+  <p>
+   B+树叶子结点之间用链表相互连接，因而只需扫描叶子结点的链表就可以完成一次遍历操作，B树只能通过中序遍历。
+  </p>
+  <h3>
+   为什么使用B+树作为索引结构？
+  </h3>
+  <p>
+   可回答：1）InnoDB为什么使用B+树作为存储引擎；2）用B+树不用B树原因
+  </p>
+  <p>
+   问过的一些公司：阿里蚂蚁(2021.08)，美团(2021.08)，字节(2021.08)，蔚来(2021.09)，阿里(2021.09)，网易有道(2021.09)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   <strong>
+    1、B+树能显著减少IO次数，提高效率
+   </strong>
+  </p>
+  <p>
+   B+树的节点只存储索引key值，具体信息的地址存在于叶子节点的地址中。这就使以页为单位的索引中可以存放更多的节点。减少更多的I/O支出。
+  </p>
+  <p>
+   <strong>
+    2、B+树的查询效率更加稳定
+   </strong>
+  </p>
+  <p>
+   B+树的查询效率更加稳定，任何关键字的查找必须走一条从根结点到叶子结点的路。所有关键字查询的路径长度相同，导致每一个数据的查询效率相当。
+  </p>
+  <p>
+   <strong>
+    3、B+树更加适合在区间查询的情况
+   </strong>
+  </p>
+  <p>
+   由于B+树的数据都存储在叶子结点中，叶子结点均为索引，方便扫库，只需要扫一遍叶子结点即可，但是B树因为其分支结点同样存储着数据，我们要找到具体的数据，需要进行一次中序遍历按序来扫，所以B+树更加适合在区间查询的情况，而在数据库中基于范围的查询是非常频繁的，所以通常B+树用于数据库索引。
+  </p>
+  <h3>
+   不使用B+树，可以用那个数据类型实现一个索引结构
+  </h3>
+  <p>
+   问过的一些公司：阿里蚂蚁(2021.08)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   可使用哈希表，也就是哈希索引。
+  </p>
+  <p>
+   哈希索引是基于哈希表实现的，对于每一行数据，存储引擎会对索引列进行哈希计算得到哈希码，并且哈希算法要尽量保证不同的列值计算出的哈希码值是不同的，将哈希码的值作为哈希表的key值，将指向数据行的指针作为哈希表的value值。这样查找一个数据的时间复杂度就是O(1)，一般多用于精确查找。
+  </p>
+  <h3>
+   介绍下MySQL的联合索引
+  </h3>
+  <p>
+   问过的一些公司：美团，猿辅导
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   比较简单的是单列索引（b+tree）。遇到多条件查询时，不可避免会使用到多列索引。联合索引又叫复合索引。
+  </p>
+  <p>
+   联合索引，相对于一般索引只有一个字段，联合索引可以为多个字段创建一个索引。它的原理也很简单，比如，我们在（a,b,c）字段上创建一个联合索引，则索引记录会首先按照A字段排序，然后再按照B字段排序然后再是C字段，因此，联合索引的特点就是：
+  </p>
+  <ul list="ue94fd550">
+   <li fid="u0b640326">
+    第一个字段一定是有序的
+   </li>
+   <li fid="u0b640326">
+    当第一个字段值相等的时候，第二个字段又是有序的，比如下表中当A=2时所有B的值是有序排列的，依次类推，当同一个B值得所有C字段是有序排列的
+   </li>
+  </ul>
+  <pre><code class="language-xml" lang="xml">| A | B | C | 
+| 1 | 2 | 3 | 
+| 1 | 4 | 2 | 
+| 1 | 1 | 4 | 
+| 2 | 3 | 5 | 
+| 2 | 4 | 4 | 
+| 2 | 4 | 6 | 
+| 2 | 5 | 5 |</code></pre>
+  <p>
+   其实联合索引的查找就跟查字典是一样的，先根据第一个字母查，然后再根据第二个字母查，或者只根据第一个字母查，但是不能跳过第一个字母从第二个字母开始查。这就是所谓的最左前缀原理。
+  </p>
+  <p>
+   <strong>
+    b+tree结构如下：
+   </strong>
+  </p>
+  <p>
+   每一个磁盘块在mysql中是一个页，页大小是固定的，mysql innodb的默认的页大小是16k，每个索引会分配在页上的数量是由字段的大小决定。当字段值的长度越长，每一页上的数量就会越少，因此在一定数据量的情况下，索引的深度会越深，影响索引的查找效率。
+  </p>
+  <p>
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662988698372-5a2a02ed-224e-4399-b5c0-122576678e17.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_33%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   对于复合索引（多列b+tree，使用多列值组合而成的b+tree索引）。遵循最左侧原则，从左到右的使用索引中的字段，一个查询可以只使用索引中的一部份，但只能是最左侧部分。例如索引是key index (a,b,c). 可以支持a a,b a,b,c 3种组合进行查找，但不支持 b,c进行查找。当使用最左侧字段时，索引就十分有效。
+  </p>
+  <p>
+   创建表test如下：
+  </p>
+  <pre><code class="language-sql" lang="sql">create table test(
+  a int,
+  b int,
+  c int,
+  KEY a(a,b,c)
+);</code></pre>
+  <p>
+   比如(a,b,c)的时候，b+数是按照从左到右的顺序来建立搜索树的，比如当(a=? and b=? and c=?)这样的数据来检索的时候，b+树会优先比较a列来确定下一步的所搜方向，如果a列相同再依次比较b列和c列，最后得到检索的数据；但当(b=? and c=?)这样的没有a列的数据来的时候，b+树就不知道下一步该查哪个节点，因为建立搜索树的时候a列就是第一个比较因子，必须要先根据a列来搜索才能知道下一步去哪里查询。比如当(a=? and c=?)这样的数据来检索时，b+树可以用a列来指定搜索方向，但下一个字段b列的缺失，所以只能把a列的数据找到，然后再匹配c列的数据了， 这个是非常重要的性质，即索引的最左匹配特性。以下通过例子分析索引的使用情况，以便于更好的理解联合索引的查询方式和使用范围。
+  </p>
+  <p>
+   <strong>
+    1、多列索引在and查询中应用
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">select * from test where a=? and b=? and c=?;	/*查询效率最高，索引全覆盖。*/
+select * from test where a=? and b=?;	/*索引覆盖a和b。*/
+select * from test where b=? and a=?;	/*经过mysql的查询分析器的优化，索引覆盖a和b。*/
+select * from test where a=?;	/*索引覆盖a。*/
+select * from test where b=? and c=?;	/*没有a列，不走索引，索引失效。*/
+select * from test where c=?;	/*没有a列，不走索引，索引失效。*/</code></pre>
+  <p>
+   <strong>
+    2、多列索引在范围查询中应用
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">/*索引覆盖a和b，因b列是范围查询，因此c列不能走索引。*/
+select * from test where a=? and b between ? and ? and c=?;
+/*a列走索引，因a列是范围查询，因此b列是无法使用索引。*/
+select * from test where a between ? and ? and b=?;
+/*a列走索引，因a列是范围查询，b列是范围查询也不能使用索引。*/
+select * from test where a between ? and ? and b between ? and ? and c=?;</code></pre>
+  <p>
+   <strong>
+    3、多列索引在排序中应用
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">/*a、b、c三列全覆盖索引，查询效率最高。*/
+select * from test where a=? and b=? order by c;
+/*a、b列使用索引查找，因b列是范围查询，因此c列不能使用索引，会出现file sort。*/
+select * from test where a=? and b between ? and ? order by c;</code></pre>
+  <p>
+   <strong>
+    总结：
+   </strong>
+  </p>
+  <p>
+   联合索引的使用在写where条件的顺序无关，mysql查询分析会进行优化而使用索引。但是减轻查询分析器的压力，最好和索引的从左到右的顺序一致。使用等值查询，多列同时查询，索引会一直传递并生效。因此等值查询效率最好。索引查找遵循最左侧原则。但是遇到范围查询列之后的列索引失效。排序也能使用索引，合理使用索引排序，避免出现file sort。
+  </p>
+  <h3>
+   联合索使用原则
+  </h3>
+  <p>
+   问过的一些公司：兴业数金(2021.09)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   最左原则
+  </p>
+  <h3>
+   数据库有必要建索引吗？
+  </h3>
+  <p>
+   问过的一些公司：美团点评
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   为什么要创建索引呢？这是因为，创建索引可以大大提高系统的性能。
+  </p>
+  <ul list="u6fc3da68">
+   <li fid="u09aae48a">
+    通过创建唯一性索引，可以保证数据库表中每一行数据的唯一性。
+   </li>
+   <li fid="u09aae48a">
+    可以大大加快 数据的检索速度，这也是创建索引的最主要的原因。
+   </li>
+   <li fid="u09aae48a">
+    可以加速表和表之间的连接，特别是在实现数据的参考完整性方面特别有意义。
+   </li>
+   <li fid="u09aae48a">
+    在使用分组和排序 子句进行数据检索时，同样可以显著减少查询中分组和排序的时间。
+   </li>
+   <li fid="u09aae48a">
+    通过使用索引，可以在查询的过程中，使用优化隐藏器，提高系统的性能。
+   </li>
+  </ul>
+  <p>
+   增加索引有如此多的优点，为什么不对表中的每一个列创建一个索引呢？这种想法固然有其合理性，然而也有其片面性。虽然，索引有许多优点，但是，为表中的每一个列都增加索引，是非常不明智的。这是因为，
+   <strong>
+    增加索引也有许多不利的一个方面。
+   </strong>
+  </p>
+  <ul list="u8dc12913">
+   <li fid="u38468669">
+    创建索引和维护索引要耗费时间，这种时间随着数据量的增加而增加。
+   </li>
+   <li fid="u38468669">
+    索引需要占物理空间，除了数据表占数据空间之外，每一个索引还要占一定的物理空间，如果要建立聚簇索引，那么需要的空间就会更大。
+   </li>
+   <li fid="u38468669">
+    当对表中的数据进行增加、删除和修改的时候，索引也要动态的维护，这样就降低了数据的维护速度。
+   </li>
+  </ul>
+  <p>
+   索引是建立在数据库表中的某些列的上面。因此，在创建索引的时候，应该仔细考虑在哪些列上可以创建索引，在哪些列上不能创建索引。一般来说，
+   <strong>
+    应该在这些列上创建索引
+   </strong>
+   <span class="lake-fontsize-12">
+    ，例如：
+   </span>
+  </p>
+  <ul list="uf5a2ca95">
+   <li fid="ua2792aa7">
+    在经常需要搜索的列上，可以加快搜索的速度；
+   </li>
+   <li fid="ua2792aa7">
+    在作为主键的列上，强制该列的唯一性和组织表中数据的排列结构；
+   </li>
+   <li fid="ua2792aa7">
+    在经常用在连接的列上，这 些列主要是一些外键，可以加快连接的速度；
+   </li>
+   <li fid="ua2792aa7">
+    在经常需要根据范围进行搜索的列上创建索引，因为索引已经排序，其指定的范围是连续的；
+   </li>
+   <li fid="ua2792aa7">
+    在经常需要排序的列上创 建索引，因为索引已经排序，这样查询可以利用索引的排序，加快排序查询时间；
+   </li>
+   <li fid="ua2792aa7">
+    在经常使用在WHERE子句中的列上面创建索引，加快条件的判断速度。
+   </li>
+  </ul>
+  <p>
+   同样，对于有些列不应该创建索引。一般来说，
+   <strong>
+    不应该创建索引的的这些列具有下列特点：
+   </strong>
+  </p>
+  <ul list="u1690092b">
+   <li fid="ue94a179f">
+    对于那些在查询中很少使用或者参考的列不应该创建索引。这是因 为，既然这些列很少使用到，因此有索引或者无索引，并不能提高查询速度。相反，由于增加了索引，反而降低了系统的维护速度和增大了空间需求。
+   </li>
+   <li fid="ue94a179f">
+    对于那 些只有很少数据值的列也不应该增加索引。这是因为，由于这些列的取值很少，例如人事表的性别列，在查询的结果中，结果集的数据行占了表中数据行的很大比例，即需要在表中搜索的数据行的比例很大。增加索引，并不能明显加快检索速度。
+   </li>
+   <li fid="ue94a179f">
+    对于那些定义为text, image和bit数据类型的列不应该增加索引。这是因为，这些列的数据量要么相当大，要么取值很少。
+   </li>
+   <li fid="ue94a179f">
+    当修改性能远远大于检索性能时，不应该创建索引。这是因为，修改性能和检索性能是互相矛盾的。当增加索引时，会提高检索性能，但是会降低修改性能。当减少索引时，会提高修改性能，降低检索性能。因此，当修改性能远远大于检索性能时，不应该创建索引。
+   </li>
+  </ul>
+  <p>
+   <strong>
+    创建索引的方法和索引的特征
+   </strong>
+  </p>
+  <p>
+   <strong>
+    1）创建索引的方法
+   </strong>
+  </p>
+  <p>
+   创建索引有多种方法，这些方法包括直接创建索引的方法和间接创建索引的方法。直接创建索引，例如使用CREATE INDEX语句或者使用创建索引向导，间接创建索引，例如在表中定义主键约束或者唯一性键约束时，同时也创建了索引。虽然，这两种方法都可以创建索引，但是，它们创建索引的具体内容是有区别的。
+  </p>
+  <p>
+   直接创建索引：
+  </p>
+  <ul list="udddc7a36">
+   <li fid="ud5edbc37">
+    使用CREATE INDEX语句或者使用创建索引向导来创建索引，这是最基本的索引创建方式，并且这种方法最具有柔性，可以定制创建出符合自己需要的索引。在使用这种方式 创建索引时，可以使用许多选项，例如指定数据页的充满度、进行排序、整理统计信息等，这样可以优化索引。使用这种方法，可以指定索引的类型、唯一性和复合 性，也就是说，既可以创建聚簇索引，也可以创建非聚簇索引，既可以在一个列上创建索引，也可以在两个或者两个以上的列上创建索引。
+   </li>
+  </ul>
+  <p>
+   间接创建索引：
+  </p>
+  <ul list="ua756b210">
+   <li fid="uf614403e">
+    通过定义主键约束或者唯一性键约束，也可以间接创建索引。主键约束是一种保持数据完整性的逻辑，它限制表中的记录有相同的主键记录。在创建主键约束时，系统自动创建了一个唯一性的聚簇索引。虽然，在逻辑上，主键约束是一种重要的结构，但是，在物理结构上，与主键约束相对应的结构是唯一性的聚簇索引。换句话说，在物理实现上，不存在主键约束，而只存在唯一性的聚簇索引。同样，在创建唯一性键约束时，也同时创建了索引，这种索引则是唯一性的非聚簇索引。因此，当使用约束创建索引时，索引的类型和特征基本上都已经确定了，由用户定制的余地比较小。
+   </li>
+  </ul>
+  <p>
+   当在表上定义主键或者唯一性键约束时，如果表 中已经有了使用CREATE INDEX语句创建的标准索引时，那么主键约束或者唯一性键约束创建的索引覆盖以前创建的标准索引。也就是说，
+   <strong>
+    主键约束或者唯一性键约束创建的索引的优先 级高于使用CREATE INDEX语句创建的索引。
+   </strong>
+  </p>
+  <p>
+   <strong>
+    2）索引的特征
+   </strong>
+  </p>
+  <p>
+   索引有两个特征，即唯一性索引和复合索引。
+  </p>
+  <p>
+   唯一性索引：
+  </p>
+  <ul list="u13202b73">
+   <li fid="u9b7fccba">
+    保证在索引列中的全部数据是唯一的，不会包含冗余数据。如果表中已经有一个主键约束或者唯一性键约束，那么当创建表或者修改表时，SQL Server自动创建一个唯一性索引。然而，如果必须保证唯一性，那么应该创建主键约束或者唯一性键约束，而不是创建一个唯一性索引。当创建唯一性索引 时，应该认真考虑这些规则：当在表中创建主键约束或者唯一性键约束时，SQL Server自动创建一个唯一性索引；如果表中已经包含有数据，那么当创建索引时，SQL Server检查表中已有数据的冗余性；每当使用插入语句插入数据或者使用修改语句修改数据时，SQL Server检查数据的冗余性：如果有冗余值，那么SQL Server取消该语句的执行，并且返回一个错误消息；确保表中的每一行数据都有一个唯一值，这样可以确保每一个实体都可以唯一确认；只能在可以保证实体 完整性的列上创建唯一性索引，例如，不能在人事表中的姓名列上创建唯一性索引，因为人们可以有相同的姓名。
+   </li>
+  </ul>
+  <p>
+   复合索引：
+  </p>
+  <ul list="u18708e31">
+   <li fid="ued699fc9">
+    就是一个索引创建在两个列或者多个列上。在搜索时，当两个或者多个列作为一个关键值时，最好在这些列上创建复合索引。当创建复合索引时，应该考虑这些规则：最多可以把16个列合并成一个单独的复合索引，构成复合索引的列的总长度不能超过900字节，也就是说复合列的长度不能太长；在复合索引中，所 有的列必须来自同一个表中，不能跨表建立复合列；在复合索引中，列的排列顺序是非常重要的，因此要认真排列列的顺序，原则上，应该首先定义最唯一的列，例 如在（COL1，COL2）上的索引与在（COL2，COL1）上的索引是不相同的，因为两个索引的列的顺序不同；为了使查询优化器使用复合索引，查询语 句中的WHERE子句必须参考复合索引中第一个列；当表中有多个关键列时，复合索引是非常有用的；使用复合索引可以提高查询性能，减少在一个表中所创建的 索引数量。
+   </li>
+  </ul>
+  <h3>
+   MySQL缺点？
+  </h3>
+  <p>
+   问过的一些公司：美团点评
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   不支持热备份；
+  </p>
+  <p>
+   MySQL最大的缺点是其安全系统，主要是复杂而非标准，另外只有到调用mysqladmin来重读用户权限时才发生改变；
+  </p>
+  <p>
+   没有一种存储过程(Stored Procedure)语言，这是对习惯于企业级数据库的程序员的最大限制；
+  </p>
+  <p>
+   MySQL的价格随平台和安装方式变化。Linux的MySQL如果由用户自己或系统管理员而不是第三方安装则是免费的，第三方案则必须付许可费。Unix或linux 自行安装 免费 、Unix或Linux 第三方安装收费；
+  </p>
+  <h3>
+   什么是脏读？怎么解决?
+  </h3>
+  <p>
+   问过的一些公司：头条，唯品会(2021.07)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   脏读就是指当一个事务正在访问数据，并且对数据进行了修改，而这种修改还没有提交到数据库中，这时，另外一个事务也访问这个数据，然后使用了这个数据。
+  </p>
+  <p>
+   解决脏读问题：
+  </p>
+  <p>
+   开启MySQL的READ COMMITTED隔离等级。
+  </p>
+  <h3>
+   为什么要有三大范式，建数据库时一定要遵循吗？
+  </h3>
+  <p>
+   问过的一些公司：唯品会(2021.07)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   有范式，自然就有反范式，不满足范式的模型，就是
+   <strong>
+    反范式模型
+   </strong>
+   <span class="lake-fontsize-12">
+    。
+   </span>
+  </p>
+  <p>
+   <strong>
+    范式的优点
+   </strong>
+   <span class="lake-fontsize-12">
+    ：范式避免了数据冗余，减少数据库的空间，减轻维护数据完整性的麻烦。
+   </span>
+  </p>
+  <p>
+   <strong>
+    范式的缺点
+   </strong>
+   <span class="lake-fontsize-12">
+    ：范式往往需要进行多表连接，当数据量很大时，效率比较低。
+   </span>
+  </p>
+  <p>
+   范式与反范式的比较：
+  </p>
+  <p>
+   1）查询记录时，
+   <strong>
+    范式模式往往要进行多表连接，而反范式只需在同一张表中查询
+   </strong>
+   <span class="lake-fontsize-12">
+    ，当数据量很大的时候，显然反范式的效率会更好。
+   </span>
+  </p>
+  <p>
+   2）
+   <strong>
+    反范式有很多重复的数据
+   </strong>
+   <span class="lake-fontsize-12">
+    ，会占用更多的内存，查询时可能会较多地使用Group By或Distinct等耗时耗性能的关键字。
+   </span>
+  </p>
+  <p>
+   3）当要
+   <strong>
+    修改更新数据
+   </strong>
+   <span class="lake-fontsize-12">
+    时（例如修改Accounting部门的领导为Russell），范式更灵活，而反范式要修改全部的数据，且易出错。
+   </span>
+  </p>
+  <p>
+   关于范式与反范式的比较还有很多很多，二者各有各的好处，在实际开发中应该根据需要合理地混用不同的模式，最大程度地结合发挥各自的优点。
+  </p>
+  <h3>
+   数据库一般对哪些列建立索引？索引的数据结构？
+  </h3>
+  <p>
+   问过的一些公司：字节(2021.07)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   数据库一般会对
+   <strong>
+    外键列、主键列、频繁更新、频繁修改索引的列
+   </strong>
+   <span class="lake-fontsize-12">
+    建立索引。
+   </span>
+  </p>
+  <p>
+   <strong>
+    索引的数据结构主要有B+树和哈希表
+   </strong>
+   <span class="lake-fontsize-12">
+    ，对应的索引分别为B+树索引和哈希索引。InnoDB引擎的索引类型有B+树索引和哈希索引，默认的索引类型为B+树索引。
+   </span>
+  </p>
+  <h3>
+   MySQL中索引的建立需要考虑哪些问题
+  </h3>
+  <p>
+   问过的一些公司：58同城(2021.08)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   1）索引不在多，而在于合适
+  </p>
+  <p>
+   2）在记录较多条的表中，对经常用作where条件的字段设置索引（表的主键，外键会自动创建索引）
+  </p>
+  <p>
+   3）假如多个条件经常同时出现，可以考虑多个字段建立联合索引，否则，建立多个单独索引
+  </p>
+  <p>
+   4）频繁进行写入操作的表，要注意不能建立太多索引
+  </p>
+  <p>
+   5）如果有多个字段，需要做联合索引，在做联合索引的时候，要把识别率最高的字段放在最左边，因为MySQL索引查询会遵循最左前缀匹配的原则，即最左优先，在检索数据时从联合索引的最左边开始匹配
+  </p>
+  <p>
+   6）索引字段，尽量避免NULL，应该指定列为NOT
+  </p>
+  <p>
+   使用NULL，除非你就想存储NULL。在MySQL中含有空值的列很难进行查询优化。因为它们使得索引、索引的统计信息以及比较运算更加复杂。可以用0、一个特殊的值或一个空串代替空值，这是设计表的时候要考虑的问题。
+  </p>
+  <h3>
+   关系型数据库与非关系型数据库区别
+  </h3>
+  <p>
+   问过的一些公司：字节(2021.07)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   <strong>
+    1、关系型数据库
+   </strong>
+  </p>
+  <p>
+   常用的几个：MySQL、Oracle
+  </p>
+  <p>
+   关系型数据库最典型的
+   <strong>
+    数据结构是表
+   </strong>
+   <span class="lake-fontsize-12">
+    ，由
+   </span>
+   <strong>
+    二维表
+   </strong>
+   <span class="lake-fontsize-12">
+    及其
+   </span>
+   <strong>
+    之间的联系
+   </strong>
+   <span class="lake-fontsize-12">
+    所组成的一个数据组织。
+   </span>
+  </p>
+  <p>
+   优点：
+  </p>
+  <p>
+   1）易于维护：都是使用表结构，格式一致；
+  </p>
+  <p>
+   2）使用方便：SQL语言通用，可用于复杂查询；
+  </p>
+  <p>
+   3）复杂操作：支持SQL，可用于一个表以及多个表之间非常复杂的查询。
+  </p>
+  <p>
+   缺点：
+  </p>
+  <p>
+   1）读写性能比较差，尤其是海量数据的高效率读写；
+  </p>
+  <p>
+   2）固定的表结构，灵活度稍欠；
+  </p>
+  <p>
+   3）高并发读写需求，传统关系型数据库来说，硬盘I/O是一个很大的瓶颈。
+  </p>
+  <p>
+   <strong>
+    2、非关系型数据库
+   </strong>
+  </p>
+  <p>
+   常用的几个：Redis、HBase、MongoDB
+  </p>
+  <p>
+   非关系型数据库严格上不是一
+   <strong>
+    加粗样式
+   </strong>
+   <span class="lake-fontsize-12">
+    种数据库，应该
+   </span>
+   <strong>
+    是一种数据结构化存储方法的集合，可以是文档或者键值对等
+   </strong>
+   <span class="lake-fontsize-12">
+    。
+   </span>
+  </p>
+  <p>
+   优点：
+  </p>
+  <p>
+   1）格式灵活：存储数据的格式可以是key,value形式、文档形式、图片形式等等，文档形式、图片形式等等，使用灵活，应用场景广泛，而关系型数据库则只支持基础类型。
+  </p>
+  <p>
+   2）速度快：nosql可以使用硬盘或者随机存储器作为载体，而关系型数据库只能使用硬盘；
+  </p>
+  <p>
+   3）高扩展性；
+  </p>
+  <p>
+   4）成本低：nosql数据库部署简单，基本都是开源软件。
+  </p>
+  <p>
+   缺点：
+  </p>
+  <p>
+   1）不提供sql支持，学习和使用成本较高；
+  </p>
+  <p>
+   2）无事务处理；
+  </p>
+  <p>
+   3）数据结构相对复杂，复杂查询方面稍欠。
+  </p>
+  <p>
+   <strong>
+    3、小结
+   </strong>
+  </p>
+  <p>
+   首先一般
+   <strong>
+    非关系型数据库是基于CAP模型
+   </strong>
+   <span class="lake-fontsize-12">
+    ，而传统的
+   </span>
+   <strong>
+    关系型数据库是基于ACID模型
+   </strong>
+   <span class="lake-fontsize-12">
+    的
+   </span>
+  </p>
+  <p>
+   1）数据存储结构
+  </p>
+  <p>
+   首先关系型数据库一般都有固定的表结构，并且需要通过DDL语句来修改表结构，不是很容易进行扩展，而非关系型数据库的存储机制就有很多了，比如基于文档的，K-V键值对的，还有基于图的等，对于数据的格式十分灵活没有固定的表结构，方便扩展，因此如果业务的数据结构并不是固定的或者经常变动比较大的，那么非关系型数据库是个好的选择。
+  </p>
+  <p>
+   2）可扩展性
+  </p>
+  <p>
+   传统的关系型数据库给人一种横向扩展难，不好对数据进行分片等，而一些非关系型数据库则原生就支持数据的水平扩展(比如mongodb的sharding机制)，并且这可能也是很多NoSQL的一大卖点，其实象Mysql这种关系型数据库的水平扩展也并不是难，即使NoSQL水平扩展容易但对于向跨分片进行joins这种场景都没有什么太好的解决办法，不管是关系型还是非关系型数据库，解决水平扩展或者跨分片Joins这种场景，在应用层和数据库层中间加一层中间件来做数据处理也许是个好的办法。
+  </p>
+  <p>
+   3）数据一致性
+  </p>
+  <p>
+   非关系型数据库一般强调的是数据最终一致性，而不没有像ACID一样强调数据的强一致性，从非关系型数据库中读到的有可能还是处于一个中间态的数据，因此如果你的业务对于数据的一致性要求很高，那么非关系型数据库并不一个很好的选择，非关系型数据库可能更多的偏向于OLAP场景，而关系型数据库更多偏向于OLTP场景。
+  </p>
+  <h3>
+   MySQL与Redis区别
+  </h3>
+  <p>
+   问过的一些公司：字节(2021.07)
+  </p>
+  <p>
+   回答技巧：一般答第一点就可以了
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   <strong>
+    1、从类型上看
+   </strong>
+  </p>
+  <p>
+   MySQL是关系型数据库，
+   <strong>
+    主要用于存放持久化数据
+   </strong>
+   <span class="lake-fontsize-12">
+    ，将数据存储在硬盘中，
+   </span>
+   <strong>
+    读取速度较慢
+   </strong>
+   <span class="lake-fontsize-12">
+    。
+   </span>
+  </p>
+  <p>
+   Redis是NOSQL，即非关系型数据库，也是缓存数据库，即
+   <strong>
+    将数据存储在缓存中，缓存的读取速度快，能够大大的提高运行效率
+   </strong>
+   <span class="lake-fontsize-12">
+    ，但是保存时间有限。
+   </span>
+  </p>
+  <p>
+   <strong>
+    缓存
+   </strong>
+   <span class="lake-fontsize-12">
+    就是数据交换的缓冲区（cache），当浏览器执行请求时，首先会对在缓存中进行查找，如果存在，就获取；否则就访问数据库。缓存的好处就是读取速度快。
+   </span>
+  </p>
+  <p>
+   <strong>
+    2、从运行机制上来看
+   </strong>
+  </p>
+  <p>
+   MySQL作为持久化存储的关系型数据库，相对薄弱的地方在于每次请求访问数据库时，都存在着I/O操作，如果反复频繁的访问数据库。1）会在反复链接数据库上花费大量时间，从而导致运行效率过慢；2）反复的访问数据库也会导致数据库的负载过高，那么此时缓存的概念就衍生了出来。
+  </p>
+  <p>
+   Redis数据库就是一款缓存数据库，用于存储使用频繁的数据，这样减少访问数据库的次数，提高运行效率。
+  </p>
+  <p>
+   <strong>
+    3、从数据存放位置上看
+   </strong>
+  </p>
+  <p>
+   数据存放位置MySQL：数据放在磁盘
+  </p>
+  <p>
+   Redis：数据放在内存
+  </p>
+  <h3>
+   列式数据库和行式数据库优劣比对
+  </h3>
+  <p>
+   问过的一些公司：阿里，多益(2021.09)，百度(2021.09)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   <strong>
+    1、行式存储和列式存储
+   </strong>
+  </p>
+  <p>
+   传统的关系型数据库，如 Oracle、DB2、MySQL、SQL SERVER 等采用行式存储法(Row-based)，在基于行式存储的数据库中， 数据是按照行数据为基础逻辑存储单元进行存储的， 一行中的数据在存储介质中以连续存储形式存在。
+  </p>
+  <p>
+   列式存储(Column-based)是相对于行式存储来说的，新兴的 Hbase、HP Vertica、EMC Greenplum 等分布式数据库均采用列式存储。在基于列式存储的数据库中， 数据是按照列为基础逻辑存储单元进行存储的，一列中的数据在存储介质中以连续存储形式存在。
+  </p>
+  <p>
+   将表放入存储系统中有两种方法，而我们绝大部分是采用行存储的。行存储法是将各行放入连续的物理位置，这很像传统的记录和文件系统。列存储法是将数据按照列存储到数据库中，与行存储类似，下图是两种存储方法的图形化解释。
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662988950079-81f095ed-6ffc-4add-b22d-4c1966af75fa.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_17%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   应用行式存储的数据库系统称为行式数据库，同理应用列式存储的数据库系统称为列式数据库。随着列式数据库的发展，传统的行式数据库加入了列式存储的支持，形成具有两种存储方式的数据库系统。
+  </p>
+  <p>
+   <strong>
+    2、区别
+   </strong>
+  </p>
+  <p>
+   1）传统行式数据库
+  </p>
+  <ul list="u5c305e6f">
+   <li fid="uc1e396f6">
+    数据是按行存储的
+   </li>
+   <li fid="uc1e396f6">
+    没有索引的查询使用大量I/O
+   </li>
+   <li fid="uc1e396f6">
+    建立索引和物化视图需要花费大量时间和资源
+   </li>
+   <li fid="uc1e396f6">
+    面对查询的需求，数据库必须被大量膨胀才能满足性能要求
+   </li>
+  </ul>
+  <p>
+   2）列式数据库
+  </p>
+  <ul list="u032352d4">
+   <li fid="uffce3acd">
+    数据按列存储，每一列单独存放
+   </li>
+   <li fid="uffce3acd">
+    数据即是索引
+   </li>
+   <li fid="uffce3acd">
+    只访问查询设计的列，大量降低系统I/O
+   </li>
+   <li fid="uffce3acd">
+    每一列由一个线索来处理，查询的并发处理
+   </li>
+   <li fid="uffce3acd">
+    数据类型一致，数据特征相似
+   </li>
+  </ul>
+  <p>
+   <strong>
+    为啥列存储可以大幅降低系统的I/O呢？
+   </strong>
+  </p>
+  <p>
+   列式存储的主要优点之一就是可以大幅降低系统的I/O，尤其是在海量数据查询时，I/O向来是系统的主要瓶颈之一。通过下面这张图，相信大家能够彻底明白这一点。
+  </p>
+  <p>
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662989398361-b885d3bc-1c8c-4f5c-9274-20c1cc045449.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_24%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   <strong>
+    3、应用场景
+   </strong>
+  </p>
+  <p>
+   在比较了行式数据库与列式数据库之后，我们更关心的是如何根据业务场景需要选择对应的数据库系统。
+  </p>
+  <p>
+   行式更适合OLTP，比如传统的基于增删改查操作的应用。列式更适合OLAP，非常适合于在数据仓库领域发挥作用，比如数据分析、海量存储和商业智能；涉及不经常更新的数据。
+  </p>
+  <p>
+   由于设计上的不同，列式数据库在并行查询处理和压缩上更有优势。而且数据是以列为单元存储，完全不用考虑数据建模或者说建模更简单了。要查询计算哪些列上的数据，直接读取列就行。
+  </p>
+  <p>
+   最后我们需要务实的指出，没有万能的数据库，列式数据库也并非万能，只不过给DBA提供了更多的选择，DBA需根据自己的应用场景自行选择。
+  </p>
+  <h3>
+   除了UTF-8还有什么编码格式
+  </h3>
+  <p>
+   问过的一些公司：阿里蚂蚁(2021.08)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   ASCII，Unicode，GB2312
+  </p>
+  <h3>
+   布隆过滤器的基本原理是什么？局限性是什么？使用什么方法可以增加删除的功能？
+  </h3>
+  <p>
+   问过的一些公司：阿里蚂蚁(2021.08)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   <strong>
+    1、布隆过滤器的概念及基本原理
+   </strong>
+  </p>
+  <p>
+   1）概念
+  </p>
+  <p>
+   布隆过滤器（Bloom Filter)是一种紧凑型的、比较巧妙的
+   <strong>
+    概率型数据结构
+   </strong>
+   <span class="lake-fontsize-12">
+    ，特点是
+   </span>
+   <strong>
+    高效地插入和查询
+   </strong>
+   <span class="lake-fontsize-12">
+    ，可以用来告诉你
+   </span>
+   <strong>
+    某样东西一定不存在或者可能存在
+   </strong>
+   <span class="lake-fontsize-12">
+    ，它是用多个哈希函数，将一个数据映射到位图结构中。
+   </span>
+   <strong>
+    此种方式不仅可以提升查询效率，也可以节省大量的内存空间
+   </strong>
+   <span class="lake-fontsize-12">
+    ，但是布隆过滤器也存在一定的缺陷：
+   </span>
+   <strong>
+    数据只能插入不能删除
+   </strong>
+   <span class="lake-fontsize-12">
+    。
+   </span>
+  </p>
+  <p>
+   2）基本原理
+  </p>
+  <p>
+   当一个元素被加入集合时，通过K个散列函数将这个元素映射成一个位数组中的K个点，把它们置为1。检索时，我们只要看看这些点是不是都是1就（大约）知道集合中有没有它了：如果这些点有任何一个0，则被检元素一定不在；如果都是1，则被检元素很可能在。这就是布隆过滤器的基本思想。
+  </p>
+  <p>
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662989424165-d45a95ba-e6ef-43f9-9ff8-8cd04ce3d840.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_26%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   <strong>
+    2、局限性
+   </strong>
+  </p>
+  <p>
+   1）有误判率，即存在假阳性（False Position），即不能准确判断元素是否在集合中（补救方法：再建立一个白名单，存储可能会误判的数据）
+  </p>
+  <p>
+   2）不能获取元素本身
+  </p>
+  <p>
+   3）一般情况下不能从布隆过滤器中删除元素
+  </p>
+  <p>
+   4）如果采用计数方式删除，可能会存在计数回绕问题
+  </p>
+  <p>
+   <strong>
+    3、布隆过滤器（Bloom Filter）增加删除的功能
+   </strong>
+  </p>
+  <p>
+   布隆过滤器本身不支持元素删除，因为删除一个元素时可能会影响到其他元素。
+  </p>
+  <p>
+   案例如下：
+  </p>
+  <p>
+   “niuke"利用三个不同的哈希函数返回的哈希值为1、4、7，“csdnnn"利用三个不同的哈希函数返回的哈希值为3、4。8，假设删除“niuke"这个元素，则1、4、7对应的下标置0，但是“csdnnn"这个元素与“niuke”对应的下标4重合，这样就会将“csdnnn”这个元素也删除，所以布隆过滤器不支持删除。
+  </p>
+  <p>
+   <strong>
+    一种支持删除的方法
+   </strong>
+   <span class="lake-fontsize-12">
+    ：将布隆过滤器中的每个比特位扩展成一个小的计数器，插入元素时给k个计数器(k个哈希函数计算出的哈希地址)加一，删除元素时，给k个计数器减一，通过多占用几倍存储空间的代价来增加删除操作。
+   </span>
+  </p>
+  <p>
+   但是这中删除方法也存在一定缺陷：
+  </p>
+  <ul list="uebe071b1">
+   <li fid="u59ed6fb4">
+    无法确认元素是否真正在布隆过滤器中
+   </li>
+   <li fid="u59ed6fb4">
+    存在计数回绕
+   </li>
+  </ul>
+  <h3>
+   你在哪些场景下使用了布隆过滤器？
+  </h3>
+  <p>
+   问过的一些公司：阿里蚂蚁(2021.08)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   1）
+   <strong>
+    网页爬虫对URL的去重
+   </strong>
+   <span class="lake-fontsize-12">
+    ，避免爬去相同的URL地址。
+   </span>
+  </p>
+  <p>
+   2）
+   <strong>
+    垃圾邮件过滤
+   </strong>
+   <span class="lake-fontsize-12">
+    ，从数十亿个垃圾邮件列表中判断某邮箱是否是杀垃圾邮箱。
+   </span>
+  </p>
+  <p>
+   3）
+   <strong>
+    解决数据库缓存击穿
+   </strong>
+   <span class="lake-fontsize-12">
+    ，黑客攻击服务器时，会构建大量不存在于缓存中的key向服务器发起请求，在数据量足够大的时候，频繁的数据库查询会导致挂机。
+   </span>
+  </p>
+  <p>
+   4）
+   <strong>
+    秒杀系统
+   </strong>
+   <span class="lake-fontsize-12">
+    ，查看用户是否重复购买。
+   </span>
+  </p>
+  <h3>
+   SQL慢查询的解决方案（优化）？
+  </h3>
+  <p>
+   问过的一些公司：美团(2021.08)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   从这几方面考虑：索引+sql语句+数据库结构优化+优化器优化+架构优化。
+  </p>
+  <p>
+   <strong>
+    1、索引
+   </strong>
+  </p>
+  <ul list="u4e99cf71">
+   <li fid="uf11313fb">
+    尽量覆盖索引，5.6支持索引下推
+   </li>
+   <li fid="uf11313fb">
+    组合索引符合最左匹配原则
+   </li>
+   <li fid="uf11313fb">
+    避免索引失效
+   </li>
+   <li fid="uf11313fb">
+    再写多读少的场景下，可以选择普通索引而不要唯一索引。更新时，普通索引可以使用change buffer进行优化，减少磁盘IO,将更新操作记录到change bufer，等查询来了将数据读到内存再进行修改.
+   </li>
+   <li fid="uf11313fb">
+    索引建立原则（一般建在where和order by，基数要大，区分度要高，不要过度索引，外键建索引）
+   </li>
+  </ul>
+  <p>
+   <strong>
+    2、SQL语句
+   </strong>
+  </p>
+  <p>
+   1）分页查询优化
+  </p>
+  <p>
+   该方案适用于主键自增的表，可以把Limit查询转换成某个位置的查询。
+  </p>
+  <pre><code class="language-sql" lang="sql">select * from tb_sku where id&gt;20000 limit 10;</code></pre>
+  <p>
+   2）优化insert语句
+  </p>
+  <ul list="u3ecd385f">
+   <li fid="ufbc67b34">
+    多条插入语句写成一条
+   </li>
+   <li fid="ufbc67b34">
+    在事务中插数据
+   </li>
+   <li fid="ufbc67b34">
+    数据有序插入（主键索引）
+   </li>
+  </ul>
+  <p>
+   <strong>
+    3、数据库结构优化
+   </strong>
+  </p>
+  <p>
+   1）将字段多的表分解成多个表有些字段使用频率高，有些低，数据量大时，会由于使用频率低的存在而变慢，可以考虑分开。
+  </p>
+  <p>
+   2）对于经常联合查询的表，可以考虑建立中间表。
+  </p>
+  <p>
+   <strong>
+    4、优化器优化
+   </strong>
+  </p>
+  <p>
+   <strong>
+    优化器使用MRR
+   </strong>
+  </p>
+  <p>
+   <strong>
+    原理
+   </strong>
+   <span class="lake-fontsize-12">
+    ：MRR 【Multi-Range Read】将ID或键值读到buffer排序，通过把「随机磁盘读」，转化为「顺序磁盘读」，减少磁盘IO，从而提高了索引查询的性能。
+   </span>
+  </p>
+  <p>
+   对于Myisam，在去磁盘获取完整数据之前，会先按照rowid排好序，再去顺序的读取磁盘。
+  </p>
+  <p>
+   对于Innodb，则会按照聚簇索引键值排好序，再顺序的读取聚簇索引。
+  </p>
+  <p>
+   <strong>
+    磁盘预读：
+   </strong>
+   <span class="lake-fontsize-12">
+    请求一页的数据时，可以把后面几页的数据也一起返回，放到数据缓冲池中，这样如果下次刚好需要下一页的数据，就不再需要到磁盘读取（局部性原理）。
+   </span>
+  </p>
+  <p>
+   <strong>
+    索引本身就是为了减少磁盘 IO，加快查询，而 MRR，则是把索引减少磁盘 IO 的作用，进一步放大
+   </strong>
+  </p>
+  <p>
+   <strong>
+    5、架构优化
+   </strong>
+  </p>
+  <p>
+   读/写分离（主库写，从库读）
+  </p>
+  <h3>
+   聚簇索引、非聚簇索引说一下
+  </h3>
+  <p>
+   可回答：聚簇索引和非聚簇索引的区别
+  </p>
+  <p>
+   问过的一些公司：友塔游戏(2021.08)，兴业数金(2021.08)，网易有道(2021.09)，贝壳找房(2021.11)，字节(2021.10)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   <strong>
+    1、聚簇索引
+   </strong>
+  </p>
+  <p>
+   聚簇索引就是
+   <strong>
+    按照每张表的主键构造一颗B+树，同时叶子节点中存放的就是整张表的行记录数据，也将聚集索引的叶子节点称为数据页
+   </strong>
+   <span class="lake-fontsize-12">
+    。这个特性决定了索引组织表中数据也是索引的一部分，每张表只能拥有一个聚簇索引。
+   </span>
+  </p>
+  <p>
+   优点：
+  </p>
+  <ul list="ud02df79e">
+   <li fid="u6a968540">
+    数据访问更快，因为聚簇索引将索引和数据保存在同一个B+树中，因此从聚簇索引中获取数据比非聚簇索引更快。
+   </li>
+   <li fid="u6a968540">
+    聚簇索引对于主键的排序查找和范围查找速度非常快。
+   </li>
+  </ul>
+  <p>
+   缺点：
+  </p>
+  <ul list="ue4dd9b0b">
+   <li fid="u1e055a0f">
+    插入速度严重依赖于插入顺序，按照主键的
+    <strong>
+     顺序插入
+    </strong>
+    <span class="lake-fontsize-12">
+     是最快的方式，否则将会出现页分裂，严重影响性能。因此，对于InnoDB表，我们一般都会定义一个
+    </span>
+    <strong>
+     自增的ID列为主键
+    </strong>
+    <span class="lake-fontsize-12">
+     。
+    </span>
+   </li>
+   <li fid="u1e055a0f">
+    <strong>
+     更新主键的代价很高
+    </strong>
+    <span class="lake-fontsize-12">
+     ，因为将会导致被更新的行移动。因此，对于InnoDB表，我们一般定义主键为不可更新。
+    </span>
+   </li>
+   <li fid="u1e055a0f">
+    二级索引访问需要两次索引查找，第一次找到主键值，第二次根据主键值找到行数据。
+   </li>
+  </ul>
+  <p>
+   <strong>
+    2、非聚簇索引（辅助索引）
+   </strong>
+  </p>
+  <p>
+   在
+   <strong>
+    聚簇索引之上创建的索引称之为辅助索引
+   </strong>
+   <span class="lake-fontsize-12">
+    ，
+   </span>
+   <strong>
+    辅助索引访问数据总是需要二次查找
+   </strong>
+   <span class="lake-fontsize-12">
+    。辅助索引叶子节点存储的不再是行的物理位置，而是主键值。通过辅助索引首先找到的是主键值，再通过主键值找到数据行的数据页，再通过数据页中的Page Directory找到数据行。
+   </span>
+  </p>
+  <p>
+   <strong>
+    3、聚簇索引与非聚簇索引的区别
+   </strong>
+  </p>
+  <p>
+   聚簇索引是将索引和整条记录存放在一起，找到索引就找到了记录。
+  </p>
+  <p>
+   非聚簇索引只存储索引字段和记录所在的位置，通过索引找到记录所在的位置，然后再根据记录所在位置去获取记录。
+  </p>
+  <p>
+   一般来讲一堆数据记录最多只能有一个聚簇索引，但可以有很多非聚簇索引。
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1662989494726-b20b1478-8cac-4f27-869f-2f1a4994c29d.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_16%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   <strong>
+    4、聚簇索引与非聚簇索引的优缺点对比
+   </strong>
+   <span class="lake-fontsize-12">
+    ​
+   </span>
+  </p>
+  <p>
+   <strong>
+    聚簇索引的查找记录要比非聚簇索引快
+   </strong>
+   <span class="lake-fontsize-12">
+    ，因为聚簇索引查找到索引就查找到了数据位置，而非聚簇索引查找到索引之后，根据记录的数据地址，再去查找数据。
+   </span>
+  </p>
+  <p>
+   <strong>
+    一个数据表只能有一个聚簇索引，但可以有多个非聚簇索引
+   </strong>
+   <span class="lake-fontsize-12">
+    。
+   </span>
+  </p>
+  <p>
+   聚簇索引和非聚簇索引都可以加快查询速度，但同时也都对写入速度会有影响；聚簇索引对写入的速度影响更大一些。
+  </p>
+  <p>
+   <strong>
+    5、聚簇索引与非聚簇索引的使用场景
+   </strong>
+  </p>
+  <p>
+   <strong>
+    InnoDB的主键使用的都是聚簇索引
+   </strong>
+   <span class="lake-fontsize-12">
+    ，而
+   </span>
+   <strong>
+    MyASM无论是主键索引还是二级索引，使用的都是非聚簇索引
+   </strong>
+   <span class="lake-fontsize-12">
+    。
+   </span>
+  </p>
+  <h3>
+   哈希索引和B+相比的优势和劣势？
+  </h3>
+  <p>
+   问过的一些公司：友塔游戏(2021.08)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   <strong>
+    优势：
+   </strong>
+  </p>
+  <p>
+   <strong>
+    等值查询，哈希索引明显有绝对优势
+   </strong>
+  </p>
+  <p>
+   因为只需要经过一次算法即可找到相应的键值；当然了，这个前提是，键值都是唯一的。如果键值不是唯一的，就需要先找到该键所在位置，然后再根据链表往后扫描，直到找到相应的数据。
+  </p>
+  <p>
+   <strong>
+    劣势：
+   </strong>
+  </p>
+  <p>
+   <strong>
+    1）哈希索引对于范围查询显得无能为力，B+对于范围查找不需要做全表扫描
+   </strong>
+  </p>
+  <p>
+   如果是范围查询检索，这时候哈希索引就毫无用武之地了，因为原先是有序的键值，经过哈希算法后，有可能变成不连续的了，就没办法再利用索引完成范围查询检索。B+ Tree索引底层是多路查询平衡树，节点是天然有序的（左节点小于服节点，右节点大于父节点），所以对于范围查找的时候不需要做全表扫描。
+  </p>
+  <p>
+   <strong>
+    2） 哈希索引无法进行排序，而B+ Tree索引底层是多路查询平衡树，节点是天然有序的
+   </strong>
+  </p>
+  <p>
+   <strong>
+    3） 哈希索引遇到大量哈希值相等的情况后性能并不一定就会比B+ Tree索引高。
+   </strong>
+  </p>
+  <p>
+   对于选择性比较低的索引键，如果创建哈希索引，那么将会存在大量记录指针信息存于同一个 哈希值相关联。这样要定位某一条记录时就会非常麻烦，会浪费多次表数据的访问，而造成整体性能低下。
+  </p>
+  <h3>
+   MVCC知道吗？
+  </h3>
+  <p>
+   问过的一些公司：陌陌(2021.10)，蔚来(2021.09)
+  </p>
+  <p>
+   参考答案：
+  </p>
+  <p>
+   MVCC(
+   <code>
+    Multiversion concurrency control
+   </code>
+   <span class="lake-fontsize-12">
+    ) 就是
+   </span>
+   <strong>
+    同一份数据保留多版本的一种方式，进而实现并发控制
+   </strong>
+   <span class="lake-fontsize-12">
+    。在查询的时候，通过
+   </span>
+   <code>
+    read view
+   </code>
+   <span class="lake-fontsize-12">
+    和版本链找到对应版本的数据。
+   </span>
+  </p>
+  <p>
+   作用：提升并发性能。对于高并发场景，MVCC比行级锁开销更小。
+  </p>
+  <p>
+   <br/>
+  </p>
+  <p>
+   <br/>
+  </p>
+  <p>
+   <br/>
+  </p>
+  <p>
+   <br/>
+  </p>
+  <p>
+   <br/>
+  </p>
+  <p>
+   <br/>
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1661077543035-a9c9e813-6e34-4f60-bd43-2a020969b404.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_10%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+ </body>
+</html>

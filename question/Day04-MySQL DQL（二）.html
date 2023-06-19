@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html>
+ <head>
+ </head>
+ <body>
+  <meta content="relax" name="paragraphSpacing"/>
+  <blockquote class="lake-alert lake-alert-info">
+   <p style="text-align: center">
+    <strong>
+     整理作者：蓦然                                     知识星球、公众号（同名）：旧时光大数据
+    </strong>
+   </p>
+  </blockquote>
+  <h3>
+   一、排序查询
+  </h3>
+  <p>
+   语法：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT 查询列表
+FROM 表名
+【WHERE 筛选条件】
+ORDER BY 排序的字段或表达式 【ASC|DESC】;</code></pre>
+  <p>
+   特点：
+  </p>
+  <ul list="ucea38f40">
+   <li fid="uf34f2b38">
+    asc代表的是升序，desc代表的是降序，如果不写，默认是升序
+   </li>
+   <li fid="uf34f2b38">
+    order by子句中可以支持单个字段、多个字段、表达式、函数、别名
+   </li>
+   <li fid="uf34f2b38">
+    order by子句一般是放在查询语句的最后面，limit子句除外
+   </li>
+  </ul>
+  <p>
+   <strong>
+    案例：
+   </strong>
+  </p>
+  <p>
+   1）按单个字段排序
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT * FROM employees ORDER BY salary DESC;</code></pre>
+  <p>
+   2）添加筛选条件再排序
+  </p>
+  <p>
+   查询部门编号&gt;=90的员工信息，按入职时间的先后进行排序
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT * FROM employees WHERE department_id&gt;=90 ORDER BY hiredate ASC;</code></pre>
+  <p>
+   3）按表达式排序（按别名排序）
+  </p>
+  <p>
+   按年薪的高低显示员工的信息和年薪
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT *,salary*12*(1 + IFNULL(commission_pct,0)) 年薪 FROM employees ORDER BY 年薪 DESC;</code></pre>
+  <p>
+   4）按函数排序
+  </p>
+  <p>
+   按姓名的长度显示员工的姓名和工资
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT last_name,salary FROM employees ORDER BY LENGTH(last_name) DESC;</code></pre>
+  <p>
+   5）按多个字段排序
+  </p>
+  <p>
+   查询员工信息，要求先按照工资升序，再按员工编号降序
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT * FROM employees ORDER BY salary,employee_id DESC;</code></pre>
+  <h3>
+   二、常见函数
+  </h3>
+  <p>
+   概念：类似于java的方法，将一组逻辑语句封装在方法体中，对外暴露方法名
+  </p>
+  <p>
+   作用
+  </p>
+  <ul list="uac56b0f3">
+   <li fid="ufc2c3516">
+    隐藏了实现细节
+   </li>
+   <li fid="ufc2c3516">
+    提高代码的重用性
+   </li>
+  </ul>
+  <p>
+   特点
+  </p>
+  <ul list="uef990b54">
+   <li fid="u5276e0c4">
+    叫什么（函数名）
+   </li>
+   <li fid="u5276e0c4">
+    干什么（函数功能）
+   </li>
+  </ul>
+  <p>
+   分类
+  </p>
+  <ul list="u7a85206d">
+   <li fid="uf1f89378">
+    单行函数
+    如 concat、length、ifNone等
+   </li>
+   <li fid="uf1f89378">
+    分组函数
+    <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+     功能：做统计使用，又称为统计函数、聚合函数、组函数
+    </span>
+   </li>
+  </ul>
+  <h3>
+   三、单行函数
+  </h3>
+  <h4>
+   3.1 单行函数——字符函数
+  </h4>
+  <p>
+   <strong>
+    1、length
+   </strong>
+  </p>
+  <p>
+   功能：获取参数值的字节个数
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT LENGTH('john');
+SELECT LENGTH('张三丰hahaha');</code></pre>
+  <p>
+   <strong>
+    2、concat
+   </strong>
+  </p>
+  <p>
+   功能：拼接字符串
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT CONCAT(last_name,'_',first_name) 姓名 FROM employees;</code></pre>
+  <p>
+   <strong>
+    3、upper
+   </strong>
+  </p>
+  <p>
+   功能：全部字符转变为大写
+  </p>
+  <p>
+   <strong>
+    lower
+   </strong>
+  </p>
+  <p>
+   功能：全部字符转变为小写
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT UPPER('john');     # JOHN
+SELECT LOWER('joHn');     # john</code></pre>
+  <p>
+   <strong>
+    upper+lower
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql"># 示例：将姓变大写，名变小写，然后拼接
+SELECT CONCAT(UPPER(last_name),LOWER(first_name))  姓名 FROM employees;</code></pre>
+  <p>
+   <strong>
+    4、substr、substring
+   </strong>
+  </p>
+  <p>
+   功能：截取字符串
+  </p>
+  <p>
+   注意：索引是从1开始
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql"># 截取从指定索引处后面所有字符
+SELECT SUBSTR('李莫愁爱上了陆展元',7) out_put;
+
+# 截取从指定索引处指定字符长度的字符
+SELECT SUBSTR('李莫愁爱上了陆展元',1,3) out_put;
+
+# 姓名中首字符大写，其他字符小写然后用_拼接，显示出来
+SELECT CONCAT(UPPER(SUBSTR(last_name,1,1)),'_',LOWER(SUBSTR(last_name,2))) out_put FROM employees;</code></pre>
+  <p>
+   <strong>
+    5、instr
+   </strong>
+  </p>
+  <p>
+   功能：返回子串第一次出现的索引，如果找不到返回0
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT INSTR('杨不殷六侠悔爱上了殷六侠','殷八侠') AS out_put;</code></pre>
+  <p>
+   <strong>
+    6、trim
+   </strong>
+  </p>
+  <p>
+   功能：去除前后空格
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT LENGTH(TRIM('    张翠山    ')) AS out_put;
+
+# 去除前后的'aa'
+SELECT TRIM('aa' FROM 'aaaaaaaaa张aaaaaaaaaaaa翠山aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');</code></pre>
+  <p>
+   <strong>
+    7、lpad
+   </strong>
+  </p>
+  <p>
+   功能：用指定的字符实现左填充指定长度（整个字符串的长度）
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT LPAD('殷素素',2,'*') AS out_put;</code></pre>
+  <p>
+   <strong>
+    8、rpad
+   </strong>
+  </p>
+  <p>
+   功能：用指定的字符实现右填充指定长度（整个字符串的长度）
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT RPAD('殷素素',12,'ab') AS out_put;</code></pre>
+  <p>
+   <strong>
+    9、replace
+   </strong>
+  </p>
+  <p>
+   功能：替换
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT REPLACE('周芷若周芷若周芷若周芷若张无忌爱上了周芷若','周芷若','赵敏') AS out_put;</code></pre>
+  <p>
+   <strong>
+    总结
+   </strong>
+  </p>
+  <table class="lake-table" margin="True" style="width: 649px">
+   <colgroup>
+    <col width="274"/>
+    <col width="375"/>
+   </colgroup>
+   <tbody>
+    <tr>
+     <td style="background-color: rgb(242, 242, 242)">
+      <p style="text-align: left">
+       <strong>
+        函数
+       </strong>
+      </p>
+     </td>
+     <td style="background-color: rgb(242, 242, 242)">
+      <p style="text-align: left">
+       <strong>
+        结果
+       </strong>
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p style="text-align: left">
+       CONCAT('Hello', 'World')
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       HelloWorld
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       SUBSTR('HelloWorld',1,5)
+      </p>
+     </td>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       Hello
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p style="text-align: left">
+       LENGTH('HelloWorld')
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       10
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       INSTR('HelloWorld', 'W')
+      </p>
+     </td>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       6
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p style="text-align: left">
+       LPAD(salary,10,'*')
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       *****24000
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       RPAD(salary, 10, '*')
+      </p>
+     </td>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       24000*****
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p style="text-align: left">
+       TRIM('H' FROM 'HelloWorld')
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       elloWorld
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       REPLACE('abcd','b','m')
+      </p>
+     </td>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       amcd
+      </p>
+     </td>
+    </tr>
+   </tbody>
+  </table>
+  <h4>
+   3.2 单行行数——数学函数
+  </h4>
+  <p>
+   <strong>
+    1、round
+   </strong>
+  </p>
+  <p>
+   功能：四舍五入
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT ROUND(1.656);     # 直接四舍五入返回2
+SELECT ROUND(1.567,2);    # 四舍五入之后返回值有2位小数</code></pre>
+  <p>
+   <strong>
+    2、ceil
+   </strong>
+  </p>
+  <p>
+   功能：向上取整，返回≥该参数的最小整数
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT CEIL(1.3);     # 返回2</code></pre>
+  <p>
+   <strong>
+    3、floor
+   </strong>
+  </p>
+  <p>
+   功能：向下取整
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT FLOOR(1.2);      # 返回1
+SELECT FLOOR(-1.2);      # 返回-1</code></pre>
+  <p>
+   <strong>
+    4、truncate
+   </strong>
+  </p>
+  <p>
+   功能：截断返回指定小数后数字个数
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT TRUNCATE(1.3999999,2);     # 返回1.39</code></pre>
+  <p>
+   <strong>
+    5、mod
+   </strong>
+  </p>
+  <p>
+   功能：取余
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT MOD(a,b);       # a-a/b*b
+SELECT MOD(-10,-3);       # -10- (-10)/(-3)*（-3）=-1</code></pre>
+  <h4>
+   3.3 单行函数——日期函数
+  </h4>
+  <p>
+   <strong>
+    格式符介绍
+   </strong>
+  </p>
+  <table class="lake-table" margin="True" style="width: 629px">
+   <colgroup>
+    <col width="183"/>
+    <col width="196"/>
+    <col width="250"/>
+   </colgroup>
+   <tbody>
+    <tr>
+     <td style="background-color: rgb(242, 242, 242)">
+      <p style="text-align: left">
+       <strong>
+        序号
+       </strong>
+      </p>
+     </td>
+     <td style="background-color: rgb(242, 242, 242)">
+      <p style="text-align: left">
+       <strong>
+        格式符
+       </strong>
+      </p>
+     </td>
+     <td style="background-color: rgb(242, 242, 242)">
+      <p style="text-align: left">
+       <strong>
+        功能
+       </strong>
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p style="text-align: left">
+       1
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       %Y
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       四位的年份
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       2
+      </p>
+     </td>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       %y
+      </p>
+     </td>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       2位的年份
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p style="text-align: left">
+       3
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       %m
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       月份（01,02…11,12）
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       4
+      </p>
+     </td>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       %c
+      </p>
+     </td>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       月份（1,2,…11,12）
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p style="text-align: left">
+       5
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       %d
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       日（01,02,…）
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       6
+      </p>
+     </td>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       %H
+      </p>
+     </td>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       小时（24小时制）
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p style="text-align: left">
+       7
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       %h
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       小时（12小时制）
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       8
+      </p>
+     </td>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       %i
+      </p>
+     </td>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       分钟（00,01…59）
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p style="text-align: left">
+       9
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       %s
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       秒（00,01,…59）
+      </p>
+     </td>
+    </tr>
+   </tbody>
+  </table>
+  <p>
+   <strong>
+    1、now
+   </strong>
+  </p>
+  <p>
+   功能：返回当前系统日期+时间
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT NOW();</code></pre>
+  <p>
+   <strong>
+    2、curdate
+   </strong>
+  </p>
+  <p>
+   功能：返回当前系统日期，不包含时间
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT CURDATE();</code></pre>
+  <p>
+   <strong>
+    3、curtime
+   </strong>
+  </p>
+  <p>
+   功能：返回当前时间，不包含日期
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT CURTIME();</code></pre>
+  <p>
+   <strong>
+    4、获取指定的部分，年、月、日、小时、分钟、秒
+   </strong>
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT YEAR(NOW()) 年;
+SELECT YEAR('1998-1-1') 年;
+SELECT MONTH(NOW()) 月;
+SELECT MONTHNAME(NOW()) 月;</code></pre>
+  <p>
+   <strong>
+    5、str_to_date
+   </strong>
+  </p>
+  <p>
+   功能：将日期格式的字符通过指定的格式转换成日期
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT STR_TO_DATE('1998-3-2','%Y-%c-%d') AS out_put;
+# 查询入职日期为1992-4-3的员工信息
+SELECT * FROM employees WHERE hiredate = '1992-4-3';
+SELECT * FROM employees WHERE hiredate = STR_TO_DATE('4-3 1992','%c-%d %Y');</code></pre>
+  <p>
+   <strong>
+    6、date_format
+   </strong>
+  </p>
+  <p>
+   功能：将日期转换成字符
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT DATE_FORMAT(NOW(),'%y年%m月%d日') AS out_put;</code></pre>
+  <p>
+   <strong>
+    综合案例：
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql"># 查询有奖金的员工名和入职日期(xx月/xx日 xx年)
+SELECT last_name,DATE_FORMAT(hiredate,'%m月/%d日 %y年') 入职日期
+FROM employees
+WHERE commission_pct IS NOT NULL;</code></pre>
+  <h4>
+   3.4 单行函数——其它函数
+  </h4>
+  <pre><code class="language-sql" lang="sql">SELECT VERSION();
+SELECT DATABASE();
+SELECT USER();</code></pre>
+  <h4>
+   3.5 单行函数——流程控制函数
+  </h4>
+  <p>
+   <strong>
+    1、if函数
+   </strong>
+  </p>
+  <p>
+   功能：if else 的效果
+  </p>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT IF(10&lt;5,'大','小');
+
+SELECT last_name,commission_pct,IF(commission_pct IS NULL,'没奖金，呵呵','有奖金，嘻嘻') 备注 FROM employees;</code></pre>
+  <p>
+   <strong>
+    2、case函数的使用一
+   </strong>
+  </p>
+  <p>
+   功能：switch case 的效果
+  </p>
+  <p>
+   介绍
+  </p>
+  <blockquote>
+   <p>
+    <strong>
+     java中
+    </strong>
+   </p>
+   <p>
+    switch(变量或表达式){
+   </p>
+   <p style="text-indent: 2em">
+    case 常量1：语句1;
+   </p>
+   <p style="text-indent: 2em">
+    break;
+   </p>
+   <p style="text-indent: 2em">
+    ...
+   </p>
+   <p style="text-indent: 2em">
+    default:语句n;break;
+   </p>
+   <p>
+    }
+   </p>
+   <p>
+    <strong>
+     mysql中
+    </strong>
+   </p>
+   <p>
+    case 要判断的字段或表达式
+   </p>
+   <p>
+    when 常量1 then 要显示的值1或语句1;
+   </p>
+   <p>
+    when 常量2 then 要显示的值2或语句2;
+   </p>
+   <p>
+    ...
+   </p>
+   <p>
+    else 要显示的值n或语句n;
+   </p>
+   <p>
+    end
+   </p>
+  </blockquote>
+  <p>
+   注意：如果when后面的条件是子串，需要加单引号；如果then后面是数值，则不用再加单引号，语句的话，则要加“；”
+  </p>
+  <p>
+   <strong>
+    案例：
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">/*案例：查询员工的工资，要求
+部门号=30，显示的工资为1.1倍
+部门号=40，显示的工资为1.2倍
+部门号=50，显示的工资为1.3倍
+其他部门，显示的工资为原工资
+*/
+
+SELECT salary 原始工资,department_id,
+CASE department_id
+WHEN 30 THEN salary*1.1
+WHEN 40 THEN salary*1.2
+WHEN 50 THEN salary*1.3
+ELSE salary
+END AS 新工资
+FROM employees;</code></pre>
+  <p>
+   <strong>
+    3、case 函数的使用二
+   </strong>
+  </p>
+  <p>
+   功能：类似于多重if
+  </p>
+  <p>
+   介绍
+  </p>
+  <blockquote>
+   <p>
+    <strong>
+     java中
+    </strong>
+   </p>
+   <p>
+    if(条件1){
+   </p>
+   <p style="text-indent: 2em">
+    语句1；
+   </p>
+   <p>
+    }else if(条件2){
+   </p>
+   <p style="text-indent: 2em">
+    语句2；
+   </p>
+   <p>
+    }
+   </p>
+   <p>
+    ...
+   </p>
+   <p>
+    else{
+   </p>
+   <p style="text-indent: 2em">
+    语句n;
+   </p>
+   <p>
+    }
+   </p>
+   <p>
+    <strong>
+     mysql中
+    </strong>
+   </p>
+   <p>
+    case
+   </p>
+   <p>
+    when 条件1 then 要显示的值1或语句1
+   </p>
+   <p>
+    when 条件2 then 要显示的值2或语句2
+   </p>
+   <p>
+    ...
+   </p>
+   <p>
+    else 要显示的值n或语句n
+   </p>
+   <p>
+    end
+   </p>
+  </blockquote>
+  <p>
+   案例：
+  </p>
+  <pre><code class="language-sql" lang="sql">/*
+#案例：查询员工的工资的情况
+如果工资&gt;20000,显示A级别
+如果工资&gt;15000,显示B级别
+如果工资&gt;10000，显示C级别
+否则，显示D级别
+*/
+
+SELECT salary,
+CASE
+WHEN salary&gt;20000 THEN 'A'
+WHEN salary&gt;15000 THEN 'B'
+WHEN salary&gt;10000 THEN 'C'
+ELSE 'D'
+END AS 工资级别
+FROM employees;</code></pre>
+  <h3>
+   四、测试
+  </h3>
+  <p>
+   <strong>
+    1、显示系统时间(注：日期+时间)
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT NOW() 时间;</code></pre>
+  <p>
+   <strong>
+    2、查询员工号，姓名，工资，以及工资提高百分之 20%后的结果（new salary）
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT employee_id,last_name,salary,salary*1.2 'NEW salary' FROM employees;</code></pre>
+  <p>
+   <strong>
+    3、将员工的姓名按首字母排序，并写出姓名的长度（length）
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT last_name,LENGTH(last_name) FROM employees ORDER BY SUBSTR(last_name,1,1);</code></pre>
+  <p>
+   <strong>
+    4、根据不同的job_id，得出不同的结果
+   </strong>
+  </p>
+  <table class="lake-table" margin="True" style="width: 585px">
+   <colgroup>
+    <col width="262"/>
+    <col width="323"/>
+   </colgroup>
+   <tbody>
+    <tr>
+     <td style="background-color: rgb(242, 242, 242)">
+      <p style="text-align: left">
+       <strong>
+        job
+       </strong>
+      </p>
+     </td>
+     <td style="background-color: rgb(242, 242, 242)">
+      <p style="text-align: left">
+       <strong>
+        grade
+       </strong>
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p style="text-align: left">
+       AD_PRES
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       A
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       ST_MAN
+      </p>
+     </td>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       B
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p style="text-align: left">
+       IT_PROG
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       C
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       SA_REP
+      </p>
+     </td>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       D
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p style="text-align: left">
+       ST_CLERK
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       E
+      </p>
+     </td>
+    </tr>
+   </tbody>
+  </table>
+  <p>
+   结果如下
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683174832553-d6f0766a-6de5-4ac6-b5b6-5bee9972b015.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_25%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT last_name,job_id AS job,
+CASE job_id
+WHEN 'AD_PRES' THEN 'A'
+WHEN 'ST_MAN' THEN 'B'
+WHEN 'IT_PROG' THEN 'C'
+WHEN 'SA_REP' THEN 'D'
+WHEN 'ST_CLERK' THEN 'E'
+END AS Grade
+FROM employees;</code></pre>
+  <p>
+   ​
+   <br/>
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1661077543035-a9c9e813-6e34-4f60-bd43-2a020969b404.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_10%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   ​
+   <br/>
+  </p>
+ </body>
+</html>

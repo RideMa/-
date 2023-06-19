@@ -1,0 +1,21 @@
+Redis数据结构默写
+9个数据类型
+String、List、Set、Zset、Hash、HyperLogLog、Geo、Stream、Bitmap
+String：int raw SDS，sds扩容：大于1MB，翻倍newlen，否则加newlen+1MB
+List：压缩列表，双向链表（listpack、quicklist），压缩列表是连续内存，上一个的长度，自己的内容，编码，连锁更新问题
+ 双向链表，quicklist，是双向链表，但是其每个node都是一个压缩列表
+Set：整数集合、哈希表，整数集合是一个连续区域，都小就编码小，来大的升级；哈希表是和整个一样，俩指针，扩容就翻倍扩容，渐进rehash，增删改查碰到了才移动
+Zset：压缩列表、跳表，跳表就是有层级的链表，O(logn)查询插入，查询的时候从高层级往低层级查，插入的时候随机建不建立下一层，redis默认最高64还是32，高层节点插入的时候从头找就可以了
+Hash：压缩列表、哈希表，哈希表两个，扩容，负载因子1，5
+HyperLogLog：统计，内存12k
+GEO：Zset
+Stream：消息队列，可以消费组
+Bitmap是字符串，Bitop
+
+redis主从复制
+aof，RDB，offset，全量，增量，buffer，代理
+
+redis锁和zookeeper区别
+redis快一些，但是没那么稳定
+zookeeper慢一点，但是强一致性，高可靠
+

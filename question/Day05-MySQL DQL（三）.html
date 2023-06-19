@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html>
+ <head>
+ </head>
+ <body>
+  <meta content="relax" name="paragraphSpacing"/>
+  <blockquote class="lake-alert lake-alert-info">
+   <p style="text-align: center">
+    <strong>
+     整理作者：蓦然                                     知识星球、公众号（同名）：旧时光大数据
+    </strong>
+   </p>
+  </blockquote>
+  <h3>
+   一、分组函数
+  </h3>
+  <p>
+   功能：用作统计使用，又称为聚合函数或统计函数或组函数
+  </p>
+  <p>
+   分类
+  </p>
+  <table class="lake-table" style="width: 619px">
+   <colgroup>
+    <col width="304"/>
+    <col width="315"/>
+   </colgroup>
+   <tbody>
+    <tr>
+     <td style="background-color: rgb(242, 242, 242)">
+      <p style="text-align: left">
+       <strong>
+        函数
+       </strong>
+      </p>
+     </td>
+     <td style="background-color: rgb(242, 242, 242)">
+      <p style="text-align: left">
+       <strong>
+        功能
+       </strong>
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p style="text-align: left">
+       sum
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       求和
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       avg
+      </p>
+     </td>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       平均值
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p style="text-align: left">
+       max
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       最大值
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       min
+      </p>
+     </td>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       最小值
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p style="text-align: left">
+       count
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       计算个数
+      </p>
+     </td>
+    </tr>
+   </tbody>
+  </table>
+  <p>
+   特点
+  </p>
+  <ul list="ufd7c924c">
+   <li fid="u6b9ccfa8">
+    sum、avg一般用于处理数值型，max、min、count可以处理任何类型
+   </li>
+   <li fid="u6b9ccfa8">
+    以上分组函数都忽略None值
+   </li>
+   <li fid="u6b9ccfa8">
+    可以和distinct搭配实现去重的运算
+   </li>
+   <li fid="u6b9ccfa8">
+    count函数的单独介绍：一般使用count(*)用作统计行数
+   </li>
+   <li fid="u6b9ccfa8">
+    和分组函数一同查询的字段要求是group by后的字段
+   </li>
+  </ul>
+  <p>
+   <strong>
+    案例：
+   </strong>
+  </p>
+  <p>
+   <strong>
+    1、简单的使用
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT SUM(salary) FROM employees;
+SELECT AVG(salary) FROM employees;
+SELECT MIN(salary) FROM employees;
+SELECT MAX(salary) FROM employees;
+SELECT COUNT(salary) FROM employees;
+
+SELECT SUM(salary) 和,ROUND(AVG(salary),2) 平均,MAX(salary) 最高,MIN(salary) 最低,COUNT(salary) 个数 FROM employees;</code></pre>
+  <p>
+   <strong>
+    2、参数支持哪些类型
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT SUM(last_name) ,AVG(last_name) FROM employees;
+SELECT SUM(hiredate) ,AVG(hiredate) FROM employees;
+
+SELECT MAX(last_name),MIN(last_name) FROM employees;
+
+SELECT MAX(hiredate),MIN(hiredate) FROM employees;
+
+SELECT COUNT(commission_pct) FROM employees;
+SELECT COUNT(last_name) FROM employees;</code></pre>
+  <p>
+   <strong>
+    3、是否忽略None
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT SUM(commission_pct) ,AVG(commission_pct),SUM(commission_pct)/35,SUM(commission_pct)/107 FROM employees;
+
+SELECT MAX(commission_pct) ,MIN(commission_pct) FROM employees;
+
+SELECT COUNT(commission_pct) FROM employees;</code></pre>
+  <p>
+   <strong>
+    4、和distinct搭配
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT SUM(DISTINCT salary),SUM(salary) FROM employees;
+
+SELECT COUNT(DISTINCT salary),COUNT(salary) FROM employees;</code></pre>
+  <p>
+   <strong>
+    5、count函数的详细介绍
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">/*
+count(字段)：统计该字段非空值的个数
+count(*)：统计结果集的行数
+count(1)：统计结果集的行数
+*/
+
+SELECT COUNT(salary) FROM employees;
+
+SELECT COUNT(*) FROM employees;
+
+SELECT COUNT(1) FROM employees;</code></pre>
+  <p>
+   效率问题：
+  </p>
+  <ul list="u5566ca84">
+   <li fid="u1896ff77">
+    MYISAM存储引擎下 ，COUNT(*)的效率高
+   </li>
+   <li fid="u1896ff77">
+    INNODB存储引擎下，COUNT(*)和COUNT(1)的效率差不多，比COUNT(字段)要高一些
+   </li>
+  </ul>
+  <p>
+   <strong>
+    6、和分组函数一同查询的字段有限制
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT AVG(salary),employee_id  FROM employees;</code></pre>
+  <h3>
+   二、分组查询
+  </h3>
+  <p>
+   <strong>
+    GROUP BY子句
+   </strong>
+  </p>
+  <p>
+   功能：可以使用GROUP BY子句将表中的数据分成若干组
+  </p>
+  <pre><code class="language-sql" lang="sql">#引入：查询每个部门的员工个数
+SELECT COUNT(*) FROM employees WHERE department_id=90;</code></pre>
+  <p>
+   语法
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT 分组函数，列（要求出现在GROUP BY的后面）
+FROM 表
+【WHERE 筛选条件】
+GROUP BY 分组的列表
+【ORDER BY 子句 】</code></pre>
+  <p>
+   <strong>
+    注意
+   </strong>
+  </p>
+  <ul list="ua19b7607">
+   <li fid="uec9c62aa">
+    查询列表（SELECT后面的条件）必须特殊，要求是分组函数和group by后出现的字段
+   </li>
+   <li fid="uec9c62aa">
+    WHERE一定要放在FROM后面
+   </li>
+  </ul>
+  <p>
+   <strong>
+    特点
+   </strong>
+  </p>
+  <p>
+   <strong>
+    分组查询中的筛选条件分为两类
+   </strong>
+  </p>
+  <table class="lake-table" style="width: 625px">
+   <colgroup>
+    <col width="137"/>
+    <col width="144"/>
+    <col width="184"/>
+    <col width="160"/>
+   </colgroup>
+   <tbody>
+    <tr>
+     <td style="background-color: rgb(242, 242, 242)">
+     </td>
+     <td style="background-color: rgb(242, 242, 242)">
+      <p style="text-align: left">
+       <strong>
+        数据源
+       </strong>
+      </p>
+     </td>
+     <td style="background-color: rgb(242, 242, 242)">
+      <p style="text-align: left">
+       <strong>
+        位置
+       </strong>
+      </p>
+     </td>
+     <td style="background-color: rgb(242, 242, 242)">
+      <p style="text-align: left">
+       <strong>
+        关键字
+       </strong>
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td>
+      <p style="text-align: left">
+       分组前筛选
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       原始表
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       group by子句的前面
+      </p>
+     </td>
+     <td>
+      <p style="text-align: left">
+       where
+      </p>
+     </td>
+    </tr>
+    <tr>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       分组后筛选
+      </p>
+     </td>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       分组后的结果集
+      </p>
+     </td>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       group by子句的后面
+      </p>
+     </td>
+     <td style="background-color: rgb(250, 250, 250)">
+      <p style="text-align: left">
+       having
+      </p>
+     </td>
+    </tr>
+   </tbody>
+  </table>
+  <ul list="uca1f3299">
+   <li fid="u3c487bd1">
+    分组函数做条件肯定是放在having子句中（也就是用了分组函数做条件就只能放在having子句中）
+   </li>
+   <li fid="u3c487bd1">
+    能用分组前筛选的，就优先考虑使用分组前筛选（也就是能直接通过原始表得到我们需要的数据）
+   </li>
+  </ul>
+  <p>
+   <strong>
+    group by子句支持单个字段分组，多个字段分组（多个字段之间用逗号隔开没有顺序要求），表达式或函数（用的较少）
+   </strong>
+  </p>
+  <p>
+   <strong>
+    也可以添加排序（排序放在整个分组查询的最后面）
+   </strong>
+  </p>
+  <p>
+   <strong>
+    1、简单的分组
+   </strong>
+  </p>
+  <p>
+   案例1：查询每个工种的员工平均工资
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT AVG(salary),job_id
+FROM employees
+GROUP BY job_id;</code></pre>
+  <p>
+   案例2：查询每个位置的部门个数
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT COUNT(*),location_id
+FROM departments
+GROUP BY location_id;</code></pre>
+  <p>
+   <strong>
+    2、添加分组前的筛选条件
+   </strong>
+  </p>
+  <p>
+   案例1：查询邮箱中包含a字符的 每个部门的最高工资
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT MAX(salary),department_id
+FROM employees
+WHERE email LIKE '%a%'
+GROUP BY department_id;</code></pre>
+  <p>
+   案例2：查询有奖金的每个领导手下员工的平均工资
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT AVG(salary),manager_id
+FROM employees
+WHERE commission_pct IS NOT NULL
+GROUP BY manager_id;</code></pre>
+  <p>
+   <strong>
+    3、添加分组后筛选条件
+   </strong>
+  </p>
+  <p>
+   <strong>
+    注意
+   </strong>
+  </p>
+  <ul list="u0cfc1901">
+   <li fid="ud086b822">
+    不能在WHERE后面使用分组函数
+   </li>
+   <li fid="ud086b822">
+    可以在HAVING后面使用分组函数
+   </li>
+  </ul>
+  <p>
+   案例1：查询哪个部门的员工个数&gt;5
+  </p>
+  <pre><code class="language-sql" lang="sql"># ①查询每个部门的员工个数
+SELECT COUNT(*),department_id
+FROM employees
+GROUP BY department_id;
+
+# ②筛选刚才①结果
+SELECT COUNT(*),department_id
+FROM employees
+GROUP BY department_id
+HAVING COUNT(*)&gt;5;</code></pre>
+  <p>
+   案例2：每个工种有奖金的员工的最高工资&gt;12000的工种编号和最高工资
+  </p>
+  <pre><code class="language-sql" lang="sql"># ①查询每个工种有奖金的员工的最高工资
+SELECT job_id,MAX(salary)
+FROM employees
+WHERE commission_pct IS NOT NULL
+GROUP BY job_id;
+
+# ②根据①结果继续筛选，最高工资&gt;12000
+SELECT job_id,MAX(salary)
+FROM employees
+WHERE commission_pct IS NOT NULL
+GROUP BY job_id
+HAVING MAX(salary)&gt;12000;</code></pre>
+  <p>
+   案例3：领导编号&gt;102的每个领导手下的最低工资大于5000的领导编号和最低工资
+  </p>
+  <pre><code class="language-sql" lang="sql"># ①查询每个领导手下的员工固定最低工资
+SELECT MIN(salary),manager_id
+FROM employees
+GROUP BY manager_id;
+
+# ②添加筛选条件：编号&gt;102
+SELECT manager_id,MIN(salary)
+FROM employees
+WHERE manager_id&gt;102
+GROUP BY manager_id;
+
+# ③添加筛选条件：最低工资&gt;5000
+SELECT manager_id,MIN(salary)
+FROM employees
+WHERE manager_id&gt;102
+GROUP BY manager_id
+HAVING MIN(salary)&gt;5000;</code></pre>
+  <p>
+   <strong>
+    4、按表达式或函数分组
+   </strong>
+  </p>
+  <p>
+   案例：按员工姓名的长度分组，查询每一组的员工个数，筛选员工个数&gt;5的有哪些
+  </p>
+  <pre><code class="language-sql" lang="sql"># ①查询每个长度的员工个数
+SELECT COUNT(*),LENGTH(last_name) len_name
+FROM employees
+GROUP BY len_name;
+
+# ②添加筛选条件 
+SELECT COUNT(*),LENGTH(last_name) len_name
+FROM employees
+GROUP BY len_name
+HAVING COUNT(*)&gt;5;</code></pre>
+  <p>
+   <strong>
+    5、按多个字段分组
+   </strong>
+  </p>
+  <p>
+   案例：查询每个工种每个部门的最低工资,并按最低工资降序
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT AVG(salary),job_id,department_id
+FROM employees
+WHERE department_id IS NOT NULL
+GROUP BY department_id,job_id;</code></pre>
+  <p>
+   <strong>
+    6、添加排序
+   </strong>
+  </p>
+  <p>
+   案例：查询每个工种每个部门的最低工资,并按最低工资降序
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT AVG(salary),job_id,department_id
+FROM employees
+WHERE department_id IS NOT NULL
+GROUP BY department_id,job_id
+ORDER BY AVG(salary) DESC;</code></pre>
+  <h3>
+   三、测试
+  </h3>
+  <p>
+   <strong>
+    1、查询各 job_id 的员工工资的最大值，最小值，平均值，总和，并按 job_id 升序
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT job_id,MAX(salary),MIN(salary),AVG(salary),SUM(salary)
+FROM employees
+GROUP BY job_id
+ORDER BY job_id ASC;</code></pre>
+  <p>
+   <strong>
+    2、查询员工最高工资和最低工资的差距（DIFFERENCE）
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT MAX(salary)-MIN(salary) defference
+FROM employees;</code></pre>
+  <p>
+   <strong>
+    3、查询各个管理者手下员工的最低工资，其中最低工资不能低于 6000，没有管理者的员工不计算在内
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT MIN(salary),manager_id
+FROM employees
+WHERE manager_id IS NOT NULL
+GROUP BY manager_id
+HAVING MIN(salary)&gt;6000;</code></pre>
+  <p>
+   <strong>
+    4、查询所有部门的编号，员工数量和工资平均值，并按平均工资降序
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT department_id,COUNT(*),AVG(salary)
+FROM employees
+GROUP BY department_id
+ORDER BY AVG(salary) DESC;</code></pre>
+  <p>
+   <strong>
+    5、选择具有各个 job_id 的员工人数
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT job_id,COUNT(manager_id)
+FROM employees
+WHERE job_id IS NOT NULL
+GROUP BY job_id;</code></pre>
+  <p>
+   ​
+   <br/>
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1661077543035-a9c9e813-6e34-4f60-bd43-2a020969b404.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_10%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   ​
+   <br/>
+  </p>
+ </body>
+</html>

@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+ <head>
+ </head>
+ <body>
+  <meta content="relax" name="paragraphSpacing"/>
+  <blockquote class="lake-alert lake-alert-info">
+   <p style="text-align: center">
+    <strong>
+     整理作者：蓦然                                     知识星球、公众号（同名）：旧时光大数据
+    </strong>
+   </p>
+  </blockquote>
+  <h3>
+   前言
+  </h3>
+  <p>
+   SQL是
+   <span class="lake-fontsize-12" style="color: rgb(233, 105, 0); background-color: rgb(248, 248, 248)">
+    结构化查询语言（Structure Query Language）
+   </span>
+   <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+    ：专门用来与数据库通信的语言
+   </span>
+  </p>
+  <p>
+   SQL的优点：
+  </p>
+  <ul list="u97d19d36">
+   <li fid="u9c1b61f4">
+    不是某个特定数据库供应商专有的语言，几乎所有的DBMS都支持SQL
+   </li>
+   <li fid="u9c1b61f4">
+    简单易学
+   </li>
+   <li fid="u9c1b61f4">
+    虽然简单，但实际上是一种强有力的语言，灵活使用其语言元素，可以进行非常复杂和高级的数据库操作
+   </li>
+  </ul>
+  <h3>
+   一、数据库的好处
+  </h3>
+  <ul list="u9188588a">
+   <li fid="ua2c1c460">
+    持久化数据到本地
+   </li>
+   <li fid="ua2c1c460">
+    可以实现结构化查询，方便管理
+   </li>
+  </ul>
+  <h3>
+   二、数据库的概念
+  </h3>
+  <h4>
+   2.1 DB
+  </h4>
+  <p>
+   数据库（database）
+   <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+    ：存储数据的“仓库”。它保存了一系列有组织的数据。
+   </span>
+  </p>
+  <h4>
+   2.2 DBMS
+  </h4>
+  <p>
+   数据库管理系统（Database Management System）
+   <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+    。数据库是通过DBMS创建和操作的容器。
+   </span>
+  </p>
+  <p>
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127215496-5dbdb036-bd34-455b-8d58-31de31e605bb.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_29%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <blockquote>
+   <p>
+    常用的数据库管理系统：MySQL、Oracle、DB2、Sqlserver等
+   </p>
+  </blockquote>
+  <h4>
+   2.3 程序员、数据库与管理系统之间的关系
+  </h4>
+  <p>
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127215450-c596c563-8d11-41f5-8146-e727c9a82e9a.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_19%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   程序员使用SQL语言通过DBMS对数据库进行相关操作（增删改查）
+  </p>
+  <h3>
+   三、数据库的特点
+  </h3>
+  <ul list="ue6a86e3b">
+   <li fid="u894758cc">
+    将数据放到表中，表再放到数据库中
+   </li>
+  </ul>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127215374-01d90281-35b0-41c2-9a2a-d3d8cdcb788d.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_21%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <ul list="ud7128507">
+   <li fid="u84f314ad">
+    一个数据库可以有多个表，每个表都有一个名字，用来标识自己。表明具有唯一性
+   </li>
+   <li fid="u84f314ad">
+    表具有一些特性，这些特性定义了数据在表中如何存储，类似于Java“类”的设计
+   </li>
+   <li fid="u84f314ad">
+    表由列组成，我们也称为字段。所有表都是由一个或多个列组成的，每一列类似Java中的“属性”
+   </li>
+   <li fid="u84f314ad">
+    表中的数据是按行存储的，每一行类似于Java中的“对象”
+   </li>
+  </ul>
+  <h3>
+   四、MySQL的安装卸载
+  </h3>
+  <h4>
+   4.1 安装
+  </h4>
+  <p>
+   双击安装包，
+   <span class="lake-fontsize-12" style="color: rgb(233, 105, 0); background-color: rgb(248, 248, 248)">
+    点击Next
+   </span>
+   <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+    ，
+   </span>
+   <span class="lake-fontsize-12" style="color: rgb(233, 105, 0); background-color: rgb(248, 248, 248)">
+    选择Custom
+   </span>
+   <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+    自定义安装，
+   </span>
+   <span class="lake-fontsize-12" style="color: rgb(233, 105, 0); background-color: rgb(248, 248, 248)">
+    点击Next
+   </span>
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127215382-09e7d443-d591-409c-8675-b578931dc283.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_14%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127215064-23ff83a2-dc0f-40e9-b6ef-397ac9457686.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_14%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   点击
+   <span class="lake-fontsize-12" style="color: rgb(233, 105, 0); background-color: rgb(248, 248, 248)">
+    Install
+   </span>
+   <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+    ，等待安装完成
+   </span>
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127216765-91e9e96e-0f84-439f-9ce6-39c0201d3711.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_14%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127216814-e6a4b13c-67b3-4167-8ed8-3f4ea6d639fc.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_14%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   点击Finish，环境安装完成
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127216825-e8eba61c-45d3-484c-b0f0-18dc25264815.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_14%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   进入配置路径，如果配置路径界面不小心被关闭了，可以通过安装目录下路径：MySQL-&gt;MySQL Server 5.5-&gt;bin再次打开（
+   <span class="lake-fontsize-12" style="color: inherit">
+    一般这一步可以跳过
+   </span>
+   <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+    ）
+   </span>
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127217102-5b14d7f8-76c5-485f-9949-11cf23f7ff81.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_16%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   进入配置界面，点击
+   <span class="lake-fontsize-12" style="color: rgb(233, 105, 0); background-color: rgb(248, 248, 248)">
+    Next
+   </span>
+   <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+    ，选择默认的精确配置即可
+   </span>
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127217202-cc4e0957-c93f-420c-8259-710a16e2788a.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_15%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   选择开发机即可
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127218446-1200f964-21d7-4d08-bd6b-05b611b60497.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_14%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   选择
+   <span class="lake-fontsize-12" style="color: rgb(233, 105, 0); background-color: rgb(248, 248, 248)">
+    多功能型
+   </span>
+   <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+    ，
+   </span>
+   <span class="lake-fontsize-12" style="color: rgb(233, 105, 0); background-color: rgb(248, 248, 248)">
+    Next
+   </span>
+   <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+    ，然后再
+   </span>
+   <span class="lake-fontsize-12" style="color: rgb(233, 105, 0); background-color: rgb(248, 248, 248)">
+    Next
+   </span>
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127218794-e3af3cde-a9be-436b-b493-5f1eda9c291a.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_14%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127218776-93b84678-668c-45d9-ae12-6ee81563d49e.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_14%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   选择同一时刻允许的并发连接数，一般选择
+   <span class="lake-fontsize-12" style="color: rgb(233, 105, 0); background-color: rgb(248, 248, 248)">
+    第一个（20）
+   </span>
+   <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+    即可
+   </span>
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127219024-525b7a71-da41-4cdf-83f3-bedfcf9ccbff.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_14%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   端口号选择
+   <span class="lake-fontsize-12" style="color: rgb(233, 105, 0); background-color: rgb(248, 248, 248)">
+    默认的3306
+   </span>
+   <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+    即可（如果是在实际开发中是需要修改的）
+   </span>
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127219019-5ff90ef9-7219-4b02-93ee-b0147435f946.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_14%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   选择utf8
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127220245-7fd82bc8-188f-4de9-96af-6ad4ecb02b2a.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_14%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   Name可以修改（一般不修改）
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127220693-924629a5-c0a4-4732-a682-2270a0d90daa.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_14%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   设置密码（一般简单点）
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127220681-d86ec93e-57c4-4b28-8978-b57aeb84ef87.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_15%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   直接执行即可，等待四个选项完成
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127220718-298ed59e-d9ff-4d76-b580-b0ef27fb0fdb.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_14%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127220842-87afc8b5-369e-4d94-9166-4b98c8aa9ef4.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_14%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   <strong>
+    安装完毕，可以使用了
+   </strong>
+  </p>
+  <p>
+   设置MySQL自启动或手动启动
+  </p>
+  <p>
+   计算机管理方式启动 -&gt; 开始 -&gt; 右击“计算机” -&gt; 选择“管理” -&gt; 服务
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127222123-0f609812-0620-46a9-bec6-ce702b3776f4.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_22%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   右击MySQL可修改状态，双击可设置手动启动
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127222279-9172cba4-b668-4077-9bc0-24d7e7ee276a.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_17%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <h4>
+   4.2 卸载MySQL
+  </h4>
+  <ul list="u49108ed0">
+   <li fid="u8eb7e850">
+    先在控制面板-&gt;程序-&gt;程序和功能卸载程序
+   </li>
+   <li fid="u8eb7e850">
+    在自己MySQL的安装路径将安装的文件夹删除
+   </li>
+   <li fid="u8eb7e850">
+    在C盘的ProgramData（隐藏文件）中将MySQL文件夹删除
+   </li>
+  </ul>
+  <p>
+   一般经过以上步骤就卸载完成了，如果再次安装还有问题，按照以下步骤操作
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2023/png/28141494/1683127222447-05cace2c-b98c-40d3-b7a4-a1fc55784c11.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_20%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   清理注册表：进行cmd界面，输入regedit，安装上面清理注册表的步骤清理即可
+  </p>
+  <blockquote>
+   <p>
+    注意：如果安装不成功，或者有问题，卸载重装就行
+   </p>
+  </blockquote>
+  <p>
+   <br/>
+   <br/>
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1661077543035-a9c9e813-6e34-4f60-bd43-2a020969b404.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_10%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   ​
+   <br/>
+  </p>
+ </body>
+</html>

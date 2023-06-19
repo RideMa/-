@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html>
+ <head>
+ </head>
+ <body>
+  <meta content="relax" name="paragraphSpacing"/>
+  <blockquote class="lake-alert lake-alert-info">
+   <p style="text-align: center">
+    <strong>
+     整理作者：蓦然                                     知识星球、公众号（同名）：旧时光大数据
+    </strong>
+   </p>
+  </blockquote>
+  <h3>
+   一、SQL语言的分类
+  </h3>
+  <h4>
+   1.1 DQL（Data Query Language）：数据查询语言
+  </h4>
+  <ul list="uc0d1dcce">
+   <li fid="u99d610c4">
+    select
+   </li>
+  </ul>
+  <h4>
+   1.2 DML（Data Manipulate Languege）：数据操作语言
+  </h4>
+  <ul list="uf5e83721">
+   <li fid="u043f95ba">
+    insert
+   </li>
+   <li fid="u043f95ba">
+    update
+   </li>
+   <li fid="u043f95ba">
+    delete
+   </li>
+  </ul>
+  <h4>
+   1.3 DDL（Data Define Language）：数据定义语言
+  </h4>
+  <ul list="u0f21c9e2">
+   <li fid="ud5ab0e68">
+    create
+   </li>
+   <li fid="ud5ab0e68">
+    drop
+   </li>
+   <li fid="ud5ab0e68">
+    alter
+   </li>
+  </ul>
+  <h4>
+   1.4 TCL（Transaction Control Language）：事务控制语言
+  </h4>
+  <ul list="u14aa8ade">
+   <li fid="ua5dae38a">
+    commit
+   </li>
+   <li fid="ua5dae38a">
+    rollback
+   </li>
+  </ul>
+  <h3>
+   二、DQL语言
+  </h3>
+  <p>
+   <strong>
+    创建表的SQL代码
+   </strong>
+   <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+    ：直接导入到SQLyog中即可
+   </span>
+  </p>
+  <p>
+   <a href="SQL%E5%BB%BA%E8%A1%A8%5Cmyemployees.sql">
+    myemployees.sql
+   </a>
+  </p>
+  <p>
+   <strong>
+    后续需要用到的四张表具体字段如下所示
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">CREATE TABLE `departments` (
+  `department_id` int(4) NOT NULL AUTO_INCREMENT,
+  `department_name` varchar(3) DEFAULT NULL,
+  `manager_id` int(6) DEFAULT NULL,
+  `location_id` int(4) DEFAULT NULL,
+  PRIMARY KEY (`department_id`),
+  KEY `loc_id_fk` (`location_id`),
+  CONSTRAINT `loc_id_fk` FOREIGN KEY (`location_id`) REFERENCES `locations` (`location_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=271 DEFAULT CHARSET=gb2312;</code></pre>
+  <pre><code class="language-sql" lang="sql">CREATE TABLE `employees` (
+  `employee_id` int(6) NOT NULL AUTO_INCREMENT,
+  `first_name` varchar(20) DEFAULT NULL,
+  `last_name` varchar(25) DEFAULT NULL,
+  `email` varchar(25) DEFAULT NULL,
+  `phone_number` varchar(20) DEFAULT NULL,
+  `job_id` varchar(10) DEFAULT NULL,
+  `salary` double(10,2) DEFAULT NULL,
+  `commission_pct` double(4,2) DEFAULT NULL,
+  `manager_id` int(6) DEFAULT NULL,
+  `department_id` int(4) DEFAULT NULL,
+  `hiredate` datetime DEFAULT NULL,
+  PRIMARY KEY (`employee_id`),
+  KEY `dept_id_fk` (`department_id`),
+  KEY `job_id_fk` (`job_id`),
+  CONSTRAINT `dept_id_fk` FOREIGN KEY (`department_id`) REFERENCES `departments` (`department_id`),
+  CONSTRAINT `job_id_fk` FOREIGN KEY (`job_id`) REFERENCES `jobs` (`job_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=207 DEFAULT CHARSET=gb2312;</code></pre>
+  <pre><code class="language-sql" lang="sql">CREATE TABLE `jobs` (
+  `job_id` varchar(10) NOT NULL,
+  `job_title` varchar(35) DEFAULT NULL,
+  `min_salary` int(6) DEFAULT NULL,
+  `max_salary` int(6) DEFAULT NULL,
+  PRIMARY KEY (`job_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=gb2312;</code></pre>
+  <pre><code class="language-sql" lang="sql">CREATE TABLE `locations` (
+  `location_id` int(11) NOT NULL AUTO_INCREMENT,
+  `street_address` varchar(40) DEFAULT NULL,
+  `postal_code` varchar(12) DEFAULT NULL,
+  `city` varchar(30) DEFAULT NULL,
+  `state_province` varchar(25) DEFAULT NULL,
+  `country_id` varchar(2) DEFAULT NULL,
+  PRIMARY KEY (`location_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=3201 DEFAULT CHARSET=gb2312;</code></pre>
+  <h4>
+   2.1 基础查询
+  </h4>
+  <p>
+   <strong>
+    语法
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT 要查询的东西 【FROM 表名】; </code></pre>
+  <p>
+   类似于Java中：System.out.println(要打印的东西);
+  </p>
+  <p>
+   <strong>
+    特点
+   </strong>
+  </p>
+  <ul list="ub54e1e38">
+   <li fid="u72c04593">
+    要查询的东西可以是常量值、可以是表达式、可以是字段、可以是函数
+   </li>
+   <li fid="u72c04593">
+    通过select查询完的结果 ，是一个虚拟的表格，不是真实存在
+   </li>
+  </ul>
+  <p>
+   <strong>
+    1、查询单个字段
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT 字段名 FROM 表名;</code></pre>
+  <p>
+   <strong>
+    2、查询多个字段
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT 字段名1，字段名2 FROM 表名;</code></pre>
+  <p>
+   <strong>
+    3、查询所有字段
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT * FROM 表名;</code></pre>
+  <p>
+   <strong>
+    4、查询常量
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT 常量值;</code></pre>
+  <p>
+   注意：字符型和日期型的常量值必须用单引号引起来，数值型不需要
+   <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+    比如：
+   </span>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT 100; 
+SELECT 'john';</code></pre>
+  <p>
+   <strong>
+    5、查询函数
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT 函数名(实参列表);</code></pre>
+  <p>
+   <strong>
+    6、查询表达式
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT 100/1234;</code></pre>
+  <p>
+   <strong>
+    7、起别名
+   </strong>
+  </p>
+  <p>
+   作用：便于理解
+  </p>
+  <p>
+   如果要查询的字段有重名的情况，使用别名可以区分开来
+  </p>
+  <p>
+   1）AS
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT COUNT(first_name) AS '员工总数' FROM employees;</code></pre>
+  <p>
+   2）空格：' '
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT VERSION() MySQL版本;</code></pre>
+  <p>
+   <strong>
+    8、去重
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT DISTINCT 字段名 FROM 表名;</code></pre>
+  <p>
+   <strong>
+    9、+
+   </strong>
+  </p>
+  <p>
+   <strong>
+    Java中的+号
+   </strong>
+  </p>
+  <ul list="u9f61f462">
+   <li fid="uc8df7de4">
+    运算符，两个操作数都为数值型
+   </li>
+   <li fid="uc8df7de4">
+    连接符，只要有一个操作数为字符串
+   </li>
+  </ul>
+  <p>
+   <strong>
+    mysql中+号
+   </strong>
+  </p>
+  <ul list="ufff41504">
+   <li fid="ud2c3a183">
+    仅仅只有一个功能：运算符
+   </li>
+  </ul>
+  <p>
+   作用：做加法运算
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT 数值+数值;  # 直接运算
+SELECT 字符+数值;  # 先试图将字符转换成数值，如果转换成功，则继续运算；否则将字符型数值转换成0，再做运算
+SELECT NULL+值;  # 结果都为None</code></pre>
+  <p>
+   <strong>
+    10、【补充】concat函数
+   </strong>
+  </p>
+  <p>
+   功能：拼接字符
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT CONCAT(字符1，字符2，字符3,...);
+SELECT CONCAT(first_name,last_name) AS 姓名 FROM employees;</code></pre>
+  <p>
+   <strong>
+    11、【补充】ifNone函数
+   </strong>
+  </p>
+  <p>
+   功能：判断某字段或表达式是否为None，如果为None 返回指定的值，否则返回原本的值
+  </p>
+  <pre><code class="language-sql" lang="sql"># 如果commission_pct为None则输出0
+SELECT IFNULL(commission_pct,0) AS 奖金率,commission_pct FROM employees;     
+SELECT CONCAT(first_name,last_name,phone_number,IFNULL(commission_pct,0),department_id) AS out_put FROM employees;</code></pre>
+  <h4>
+   2.2 条件查询
+  </h4>
+  <p>
+   条件查询
+   <span class="lake-fontsize-12" style="color: rgb(119, 119, 119)">
+    ：根据条件过滤原始表的数据，查询到想要的数据
+   </span>
+  </p>
+  <p>
+   <strong>
+    语法
+   </strong>
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT 要查询的字段|表达式|常量值|函数
+FROM 表
+WHERE 条件;</code></pre>
+  <p>
+   <strong>
+    1、按条件表达式筛选
+   </strong>
+  </p>
+  <p>
+   条件运算符：&gt; &lt; = &lt;&gt; != &gt;= &lt;=
+  </p>
+  <p>
+   <strong>
+    案例：
+   </strong>
+  </p>
+  <p>
+   1）查询工资大于17000员工的姓名
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT CONCAT(first_name,last_name) 姓名 FROM employees WHERE salary &gt;= 17000;</code></pre>
+  <p>
+   2）查询部门编号不等于90号的员工名和部门编号
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT first_name,manager_id FROM employees WHERE manager_id != 90;</code></pre>
+  <p>
+   <strong>
+    2、逻辑表达式
+   </strong>
+  </p>
+  <p>
+   作用：用于连接条件表达式
+  </p>
+  <p>
+   逻辑运算符：
+  </p>
+  <ul list="u86fe025a">
+   <li fid="u9580261a">
+    &amp;&amp;和and
+    ：两个条件都为True，结果为True，反之为False
+   </li>
+   <li fid="u9580261a">
+    ||或or
+    <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+     ：只要有一个条件为True，结果为True，反之为False
+    </span>
+   </li>
+   <li fid="u9580261a">
+    !或not
+    <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+     ：如果连接的条件本身为False，结果为True，反之为False
+    </span>
+   </li>
+  </ul>
+  <p>
+   <strong>
+    案例：
+   </strong>
+  </p>
+  <p>
+   1） 查询工资在10000到20000之间的员工名、工资以及奖金
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT last_name,salary,commission_pct FROM employees WHERE salary&gt;=10000 AND salary&lt;=20000; </code></pre>
+  <p>
+   2）查询部门编号不是在90到100之间，或者工资高于15000的员工信息
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT * FROM employees WHERE NOT(department_id&gt;=90 AND department_id&lt;=110) OR salary&gt;15000;</code></pre>
+  <p>
+   <strong>
+    3、模糊查询
+   </strong>
+  </p>
+  <p>
+   <strong>
+    LIKE
+   </strong>
+  </p>
+  <p>
+   作用：一般和通配符搭配使用
+  </p>
+  <p>
+   通配符：
+  </p>
+  <ul list="u915b1097">
+   <li fid="u9bd9b4a7">
+    %：任意多个字符，包含0个字符
+   </li>
+   <li fid="u9bd9b4a7">
+    _：任意单个字符
+   </li>
+  </ul>
+  <p>
+   <strong>
+    案例：
+   </strong>
+  </p>
+  <p>
+   1）查询员工名中包含字符a的员工信息
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT * FROM employees WHERE last_name LIKE '%a%';</code></pre>
+  <p>
+   2）查询员工名中第二个字符是e，第四个字符是a的员工名和工资
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT last_name,salary FROM employees WHERE last_name LIKE '_e_a%';</code></pre>
+  <p>
+   3）查询第二个字符为_的员工名
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT last_name FROM employees WHERE last_name LIKE '_\_%';    # 通过 \ 转义符</code></pre>
+  <p>
+   <strong>
+    BETWEEN AND
+   </strong>
+  </p>
+  <p>
+   作用：
+  </p>
+  <ul list="u67426111">
+   <li fid="u407aad12">
+    使用between and可以提高语句的简洁度
+   </li>
+   <li fid="u407aad12">
+    查询是包含临界值的
+   </li>
+   <li fid="u407aad12">
+    两个临界值不要调换顺序
+   </li>
+  </ul>
+  <p>
+   <strong>
+    案例：
+   </strong>
+  </p>
+  <p>
+   1）查询员工编号在100到120之间的员工信息
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT * FROM employees WHERE employee_id BETWEEN 100 AND 120;</code></pre>
+  <p>
+   <strong>
+    IN
+   </strong>
+  </p>
+  <p>
+   作用：判断某字段的值是否属于in列表中的某一项
+  </p>
+  <p>
+   特点：
+  </p>
+  <ul list="u422c0c51">
+   <li fid="u212f6bd0">
+    使用in提高语句简洁度
+   </li>
+   <li fid="u212f6bd0">
+    in列表的值类型必须一致或兼容
+   </li>
+   <li fid="u212f6bd0">
+    in列表中不支持通配符
+   </li>
+  </ul>
+  <p>
+   <strong>
+    案例：
+   </strong>
+  </p>
+  <p>
+   1）查询员工的员工编号是AD_VP,IT_PROG,AD_PRES中的一个的员工名和工种编号
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT last_name,job_id FROM employees WHERE job_id IN ('AD_VP','IT_PROG','AD_PRES');</code></pre>
+  <p>
+   <strong>
+    IS NULL
+   </strong>
+  </p>
+  <p>
+   注意：=或&lt;&gt;（不等于）不能用于判断None值
+  </p>
+  <p>
+   作用：
+   <span class="lake-fontsize-12" style="color: rgb(233, 105, 0); background-color: rgb(248, 248, 248)">
+    IS NULL
+   </span>
+   <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+    或
+   </span>
+   <span class="lake-fontsize-12" style="color: rgb(233, 105, 0); background-color: rgb(248, 248, 248)">
+    IS NOT NULL
+   </span>
+   <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+    可以判断是否为None值，如果是，则返回1，否则返回0
+   </span>
+  </p>
+  <p>
+   <strong>
+    案例：
+   </strong>
+  </p>
+  <p>
+   1）查询无奖金的员工名和奖金率
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT last_name,commission_pct FROM employees WHERE commission_pct IS NULL;</code></pre>
+  <p>
+   2）查询有奖金的员工名和奖金率
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT last_name,commission_pct FROM employees WHERE commission_pct IS NOT NULL;</code></pre>
+  <p>
+   <strong>
+    &lt;=&gt;
+   </strong>
+  </p>
+  <p>
+   作用：安全等于
+  </p>
+  <p>
+   案例：
+  </p>
+  <p>
+   1）查询无奖金的员工名和奖金率
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT last_name,commission_pct FROM employees WHERE commission_pct &lt;=&gt; NULL;</code></pre>
+  <p>
+   2）查询工资为12000的员工信息
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT last_name,salary FROM employees WHERE salary &lt;=&gt; 12000;</code></pre>
+  <p>
+   <strong>
+    IS NULL和&lt;=&gt;对比
+   </strong>
+  </p>
+  <p>
+   IS NULL
+   <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+    ：仅仅可以判断NULL值，可读性较高，建议使用
+   </span>
+   <span class="lake-fontsize-12" style="color: rgb(233, 105, 0); background-color: rgb(248, 248, 248)">
+    &lt;=&gt;
+   </span>
+   <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+    ：既可以判断NULL值，又可以判断普通的数值，可读性较低
+   </span>
+  </p>
+  <h3>
+   三、测试
+  </h3>
+  <p>
+   1）查询工资大于 12000 的员工姓名和工资
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT CONCAT(first_name,' ',last_name) 姓名,salary FROM employees WHERE salary &gt; 12000;</code></pre>
+  <p>
+   2）查询员工号为 176 的员工的姓名和部门号和年薪
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT CONCAT(first_name,' ',last_name) 姓名,salary*12*(1 + IFNULL(commission_pct,0)) 年薪 FROM employees WHERE employee_id=176;</code></pre>
+  <p>
+   3）选择工资不在 5000 到 12000 的员工的姓名和工资
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT CONCAT(first_name,' ',last_name) 姓名,salary FROM employees WHERE salary NOT IN (5000,12000);</code></pre>
+  <p>
+   4）选择在 20 或 50 号部门工作的员工姓名和部门号
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT CONCAT(first_name,' ',last_name) 姓名,department_id FROM employees WHERE department_id=20 OR department_id=50;</code></pre>
+  <p>
+   5）选择公司中没有管理者的员工姓名及 job_id
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT CONCAT(first_name,' ',last_name) 姓名,job_id FROM employees WHERE manager_id IS NULL;</code></pre>
+  <p>
+   6）选择公司中有奖金的员工姓名，工资和奖金级别
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT CONCAT(first_name,' ',last_name) 姓名,salary,commission_pct FROM employees WHERE commission_pct IS NOT NULL;</code></pre>
+  <p>
+   7）选择员工姓名的第三个字母是 a 的员工姓名
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT CONCAT(first_name,' ',last_name) 姓名 FROM employees WHERE CONCAT(first_name,' ',last_name) LIKE '__a%';</code></pre>
+  <p>
+   8）选择姓名中有字母 a 和 e 的员工姓名
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT CONCAT(first_name,' ',last_name) 姓名 FROM employees WHERE CONCAT(first_name,' ',last_name) LIKE '%a%' OR '%e%';</code></pre>
+  <p>
+   9）显示出表 employees 表中 first_name 以 'e'结尾的员工信息
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT * FROM employees WHERE first_name LIKE '%e';</code></pre>
+  <p>
+   10）显示出表 employees 部门编号在 80-100 之间 的姓名、职位
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT CONCAT(first_name,' ',last_name) 姓名,job_id FROM employees WHERE department_id BETWEEN 80 AND 100;</code></pre>
+  <p>
+   11）显示出表 employees 的 manager_id 是 100,101,110 的员工姓名、职位
+  </p>
+  <pre><code class="language-sql" lang="sql">SELECT CONCAT(first_name,' ',last_name) 姓名,job_id,manager_id FROM employees WHERE manager_id IN (100,101,110);</code></pre>
+  <p>
+   ​
+   <br/>
+  </p>
+  <p>
+   <strong>
+    经典面试题
+   </strong>
+  </p>
+  <p>
+   试问 SELECT * FROM employees; 和 select * from employees where commission_pct like '%%' and last_name like '%%';结果是否一样？并说明原因
+  </p>
+  <p>
+   答
+   <span class="lake-fontsize-12" style="color: rgb(52, 73, 94)">
+    ：结果不一样，如果判断字段有None值时，则不一样；如果将上面的and改为or，则查询结果一样
+   </span>
+  </p>
+  <p>
+   <br/>
+  </p>
+  <p>
+   ​
+   <br/>
+  </p>
+  <p style="text-align: center">
+   <img src="https://cdn.nlark.com/yuque/0/2022/png/12867669/1661077543035-a9c9e813-6e34-4f60-bd43-2a020969b404.png?x-oss-process=image%2Fwatermark%2Ctype_d3F5LW1pY3JvaGVp%2Csize_10%2Ctext_5YWs5LyX5Y-377ya5pen5pe25YWJ5aSn5pWw5o2u%2Ccolor_FFFFFF%2Cshadow_50%2Ct_80%2Cg_se%2Cx_10%2Cy_10"/>
+  </p>
+  <p>
+   ​
+   <br/>
+  </p>
+ </body>
+</html>
